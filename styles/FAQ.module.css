@@ -1,0 +1,41 @@
+.utcert_faq_container {
+    margin: 20px;
+    padding: 20px;
+    background-color: #e4dede;
+    border-radius: 10px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    background: radial-gradient(circle at 30% -100%, #042c54 25%, rgba(4, 44, 84, 1) 85%, rgba(27, 120, 222, 1) 100%);
+}
+
+.utcert_faq_text {
+    background: var(--gradient-bar);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-family: var(--font-family);
+    font-size: 18px;
+    line-height: 45px;
+    font-weight: 800;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.utcert_faq_collapse {
+    font-weight: bold;
+    background-color: transparent;
+}
+
+.utcert_faq_collapse_question {
+    background-color: rgb(0 0 0 0.08);
+}
+
+.utcert_faq_label {
+    color: white;
+}
+
+.utcert_faq_children {
+    font-weight: lighter;
+    font-size: medium;
+    color: var(--color-text);
+}
