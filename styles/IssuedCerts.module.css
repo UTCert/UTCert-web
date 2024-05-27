@@ -1,0 +1,22 @@
+.box_container {
+    display: flex;
+    gap: 35px
+}
+
+.box_icon {
+    margin-top: 15px;
+    cursor: pointer;
+}
+
+.spinner {
+    transition: transform 1s ease-in-out;
+  }
+  
+.spinner.rotate {
+    transform: rotate(480deg); 
+}
+
+.box_filter {
+    display: flex;
+    gap: 35px
+}
