@@ -2,11 +2,22 @@ import Footer from '@/components/Footer';
 import PageTitleWrapper from '@/components/PageTitleWrapper';
 import PageHeader from '@/content/Management/Transactions/PageHeader';
 import SidebarLayout from '@/layouts/SidebarLayout';
-import { Container, Grid } from '@mui/material';
+import { Container, Grid, IconButton } from '@mui/material';
 import Head from 'next/head';
 
 import IssuedCertsOrders from '@/content/Management/Transactions/IssuedCertsOrders';
-import { SnackbarProvider } from 'notistack';
+import { SnackbarProvider, useSnackbar } from 'notistack';
+import CloseIcon from '@mui/icons-material/Close';
+
+function SnackbarCloseButton({ snackbarKey }) {
+  const { closeSnackbar } = useSnackbar();
+
+  return (
+    <IconButton onClick={() => closeSnackbar(snackbarKey)} size="small" sx={{ color: 'white' }}>
+      <CloseIcon/>
+    </IconButton>
+  );
+}
 
 function ApplicationsTransactions() {
   return (
@@ -32,7 +43,7 @@ function ApplicationsTransactions() {
       </Container>
       <SnackbarProvider
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      />
+        action={snackbarKey => <SnackbarCloseButton snackbarKey={snackbarKey} />} />
       <Footer />
     </>
   );

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Alert, AlertColor, Avatar, Dialog, DialogContent, Snackbar } from '@mui/material';
 // import bg from '@/public/background.jpg'
 import {
   Card,
@@ -8,19 +9,21 @@ import {
   Container,
 } from '@nextui-org/react';
 
+import axiosInstance from '@/lib/axiosIntance';
 import { CardContent, Checkbox, Box, FormControlLabel, Button } from '@mui/material';
 import IconButton from '@mui/material/IconButton';
 import { styled } from '@mui/material/styles';
 import UploadTwoToneIcon from '@mui/icons-material/UploadTwoTone';
 import GetCookie from '@/hooks/getCookie';
-import axios from 'axios';
-import FormData from 'form-data';
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { API_URL } from '@/constants/appConstants';
+import { useRouter } from 'next/router';
+import { HTTP_STATUS } from '@/enum/HTTP_SATUS';
+import Loading from '@/components/Loading';
+import { useStore } from '@/contexts/GlobalContext';
 
 const ButtonUploadWrapper = styled(Box)(
   ({ theme }) => `
@@ -40,52 +43,105 @@ const ButtonUploadWrapper = styled(Box)(
 );
 
 function Register() {
-  const [nameValue, setNameValue] = useState('');
-  const [fileValue, setFileValue] = useState('');
+  const [nameValue, setNameValue] = useState("");
+  const [fileValue, setFileValue] = useState<File | null>(null);
   const [isChecked, setIsChecked] = useState(false);
+  const [alertInfo, setAlertInfo] = useState<{ isOpen: boolean; message: string; severity: AlertColor } | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [openPreview, setOpenPreview] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const { handleGetUser, handleSetToken} = useStore();
+  const router = useRouter();
 
-  const handleNameChange = (event) => {
+  const handleNameChange = (event: any) => {
     setNameValue(event.target.value);
   };
 
-  const handleFileChange = (event) => {
-    const selectedFile = event.target.files[0];
-    setFileValue(selectedFile);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (selectedFile) {
+      setFileValue(selectedFile);
+      // Tạo URL preview cho file đã chọn
+      const fileReader = new FileReader();
+      fileReader.onload = (e) => {
+        setPreviewUrl(e.target?.result as string);
+      };
+      fileReader.readAsDataURL(selectedFile);
+    }
   };
 
-  const handleCheckboxChange = (event) => {
+  const handleCheckboxChange = (event: any) => {
     setIsChecked(event.target.checked);
   };
 
-  const registerAccount = async () => {
-    const checkbox = document.getElementById('policy') as HTMLInputElement;
-    if (nameValue === "" || nameValue === null) {
-      alert("You must enter name!");
-      return;
-    }
-    if (fileValue === "" || fileValue === null) {
-      alert("You select logo name!");
-      return;
-    }
-    if (checkbox.checked) {
-      try {
-        const url = API_URL + '/Home/add-user';
+  const handleOpenPreview = () => {
+    setOpenPreview(true);
+  };
 
-        const formData = new FormData();
-        formData.append('UserID', GetCookie('stakeId'));
-        formData.append('UserName', nameValue);
-        formData.append('Logo', fileValue);
+  const handleClosePreview = () => {
+    setOpenPreview(false);
+  };
 
-        await axios.post(url, formData);
-        alert('Register Account Successfully!')
-        window.location.href = '/dashboards/home'
-      } catch (error) {
-        console.error(error);
+    const registerAccount = async () => {
+        if (nameValue === "" || nameValue === null) {
+            setAlertInfo({ isOpen: true, message: "You must enter name!", severity: "error" });
+            return;
+        }
+        if (fileValue === null) {
+            setAlertInfo({ isOpen: true, message: "You must select a logo!", severity: "error" });
+            return;
+        }
+        if (!isChecked) {
+            setAlertInfo({ isOpen: true, message: "You have to confirm policy!", severity: "error" });
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('name', nameValue);
+            formData.append('stakeId', GetCookie('stakeId'));
+            formData.append("receiveAddress", GetCookie("receiveAddress")); 
+            if (fileValue) {
+                formData.append('avatarUri', fileValue);
+            }
+
+            setLoading(true);
+            const res = await axiosInstance.post('/User/register', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            if (res.status === HTTP_STATUS.OK) {
+                const { data: authResponse } = await axiosInstance.get(`User/authenticate`, {
+                    params: { stakeId: GetCookie('stakeId') }
+                });
+
+                setLoading(false);
+                if (authResponse.success) {
+                    setAlertInfo({ isOpen: true, message: 'Register Account Successfully!', severity: "success" });
+                    handleSetToken(authResponse.data.jwtToken);
+                    await handleGetUser();
+                    setTimeout(() => router.push('/dashboards/home'), 300);
+                }
+            } else {
+                throw new Error('Registration failed');
+            }
+
+        } catch (error) {
+            setLoading(false);
+            console.error('Registration failed:', error);
+            setAlertInfo({ isOpen: true, message: 'Registration failed. Please try again.', severity: "error" });
+        }
+    }
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
       }
-    } else {
-      alert('You have to confirm policy!')
-    }
-  }
+    };
+  }, [previewUrl]);
 
   return (
     <>
@@ -96,12 +152,25 @@ function Register() {
         backgroundSize: 'cover',
         backgroundRepeat: 'no-repeat'
       }}>
+         {loading && <Loading />}
         <Container
           display="flex"
           alignItems="center"
           justify="center"
           css={{ minHeight: '100vh' }}
         >
+          {alertInfo && (
+            <Snackbar 
+              anchorOrigin={{ vertical: 'top', horizontal: 'center' }} 
+              open={alertInfo.isOpen} 
+              autoHideDuration={6000} 
+              onClose={() => setAlertInfo(null)}
+            >
+              <Alert severity={alertInfo.severity} onClose={() => setAlertInfo(null)} sx={{ mb: 2 }}>
+                {alertInfo.message}
+              </Alert>
+            </Snackbar>
+          )}
           <Card css={{ mw: '420px', p: '20px' }} variant="bordered">
             <Text
               size={24}
@@ -124,7 +193,26 @@ function Register() {
               value={nameValue}
               onChange={handleNameChange}
             />
-            <Text size={18} weight="bold">Upload your logo
+            {previewUrl && (
+              <Box mt={2} display="flex" flexDirection="column" alignItems="center">
+                <Avatar
+                  src={previewUrl}
+                  alt="Preview"
+                  sx={{ width: 100, height: 100, cursor: 'pointer' }}
+                  onClick={handleOpenPreview}
+
+                />
+                 <Typography variant="caption" mt={1}>
+                  {fileValue?.name}
+                </Typography>
+              </Box>
+            )}
+            <Dialog open={openPreview} onClose={handleClosePreview} maxWidth="md">
+              <DialogContent>
+                <img src={previewUrl || ''} alt="Preview" style={{ width: '100%', height: 'auto' }} />
+              </DialogContent>
+            </Dialog>
+            <Text size={18} weight="bold"> {!fileValue && 'Upload your logo'}
               <ButtonUploadWrapper>
                 <Input
                   accept="image/*"
@@ -195,6 +283,5 @@ function Register() {
     </>
   );
 }
-
 
 export default Register;

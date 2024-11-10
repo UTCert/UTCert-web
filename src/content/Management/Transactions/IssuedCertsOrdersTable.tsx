@@ -2,10 +2,9 @@ import Label from '@/components/Label';
 import { API_URL } from '@/constants/appConstants';
 import {
   Certificate,
-  CertificateName,
+  CertificateMulSign,
   CertificateStatus,
-  ContactStatus,
-  ReceivedName
+  SigningType
 } from '@/models/certificate';
 import {
   Asset,
@@ -15,23 +14,28 @@ import {
   Mint,
   Transaction
 } from '@meshsdk/core';
-import BlockIcon from '@mui/icons-material/Block';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditTwoToneIcon from '@mui/icons-material/EditTwoTone';
+import ListIcon from '@mui/icons-material/List';
 import SendIcon from '@mui/icons-material/Send';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import AttachFileIcon from '@mui/icons-material/AttachFile'; 
+
+import Loading from '@/components/Loading';
+import { useStore } from '@/contexts/GlobalContext';
+import { HTTP_STATUS } from '@/enum/HTTP_SATUS';
+import axiosInstance from '@/lib/axiosIntance';
+import { ContactStatus } from '@/models/contact';
+import { textToHex } from '@/utils/helpers';
 import {
   Box,
   Button,
   Card,
   CardHeader,
   Checkbox,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
+  CircularProgress,
   Divider,
+  Fade,
   FormControl,
   IconButton,
   Input,
@@ -50,607 +54,651 @@ import {
   useTheme
 } from '@mui/material';
 import { enqueueSnackbar } from 'notistack';
-import PropTypes from 'prop-types';
-import { ChangeEvent, FC, useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { FaSpinner } from 'react-icons/fa';
 import { MdArrowDownward, MdArrowUpward } from 'react-icons/md';
+import slugify from 'slugify';
 import styles from '../../../../styles/IssuedCerts.module.css';
 import BulkActions from './BulkActions';
-
-interface IssuedCertsOrdersTableProps {
-  className?: string;
-  certificates: Certificate[];
-  fetchData: () => void;
-}
+import CertDetail from './CertDetail';
+import SignersTable from './SignersTable';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 interface Filters {
   certificateStatus?: CertificateStatus;
-  certificateName?: CertificateName;
-  receivedName?: ReceivedName;
+  certificateName?: string;
+  receivedName?: string;
+  sorting?: string;
+  issueGuid?: string;
+  pageNumber: number;
+  pageSize: number;
 }
 
-const columns = [
-  { key: 'certificateCode', name: 'Code' },
-  { key: 'certificateName', name: 'Certificate Name' },
-  { key: 'receivedName', name: 'Received name' },
-  { key: 'signedDate', name: 'Date Signed ' }
+const statusOptions = [
+  {
+    id: 'all',
+    name: 'All'
+  },
+  {
+    id: 1,
+    name: 'Draft'
+  },
+  {
+    id: 2,
+    name: 'Signed'
+  },
+  {
+    id: 3,
+    name: 'Sent'
+  },
+  {
+    id: 4,
+    name: 'Banned'
+  }
 ];
 
-const getStatusLabel = (certificateStatus: CertificateStatus): JSX.Element => {
-  const map = {
-    1: {
-      text: 'Draft',
-      color: 'secondary'
-    },
-    2: {
-      text: 'Signed',
-      color: 'primary'
-    },
-    3: {
-      text: 'Sent',
-      color: 'success'
-    },
-    4: {
-      text: 'Banned',
-      color: 'error'
-    }
-  };
-  const { text, color }: any = map[certificateStatus];
-  return <Label color={color}>{text}</Label>;
-};
+const columns = [
+  { key: 'code', name: 'Code', sort: '', align: 'center', isSort: true },
+  { key: 'name', name: 'Certificate Name', sort: '', align: 'left', isSort: true },
+  { key: 'receiverName', name: 'Received Name', sort: '', align: 'left', isSort: true },
+  { key: 'signedDate', name: 'Signed Date ', sort: '', align: 'center' },
+  { key: 'signingType', name: 'Signing Type', align: 'center' }
+];
 
-const getStatusContactLabel = (contactStatus: ContactStatus): JSX.Element => {
-  const map = {
-    '1': {
-      text: 'Pending',
-      color: 'info'
-    },
-    '2': {
-      text: 'Connected',
-      color: 'success'
-    }
-  };
-  const { text, color }: any = map[contactStatus];
-  return <Label color={color}>{text}</Label>;
-};
-
-const applyFilters = (
-  certificates: Certificate[],
-  filters: Filters
-): Certificate[] => {
-  return certificates.filter((certificate) => {
-    let matches = true;
-
-    if (
-      filters.certificateStatus &&
-      certificate.certificateStatus !== filters.certificateStatus
-    ) {
-      matches = false;
-    }
-
-    if (
-      filters.certificateName &&
-      !certificate.certificateName
-        .toLowerCase()
-        .includes(filters.certificateName.toLowerCase())
-    ) {
-      matches = false;
-    }
-
-    if (
-      filters.receivedName &&
-      !certificate.receivedName
-        .toLowerCase()
-        .includes(filters.receivedName.toLowerCase())
-    ) {
-      matches = false;
-    }
-
-    return matches;
-  });
-};
-
-const applyPagination = (
-  certificates: Certificate[],
-  page: number,
-  limit: number
-): Certificate[] => {
-  return certificates.slice(page * limit, page * limit + limit);
-};
-
-// modal view cert
-function SimpleDialog(props) {
-  const { open, onClose, selectedCertifiate } = props;
-  if (selectedCertifiate == undefined) {
-    return <></>;
-  }
-
-  return (
-    <Dialog maxWidth="lg" open={open} onClose={onClose}>
-      <DialogContent
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '6fr 4fr',
-          alignItems: 'center'
-        }}
-      >
-        <div>
-          <img
-            src={selectedCertifiate.ipfsLink.replace(
-              'ipfs://',
-              'https://ipfs.io/ipfs/'
-            )}
-            alt="Image"
-            style={{ maxWidth: '100%', maxHeight: '100%' }}
-          />
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'auto 2fr',
-            marginLeft: '30px',
-            fontSize: '15px',
-            gap: '5px',
-            backgroundColor: 'Background'
-          }}
-        >
-          <p
-            style={{
-              fontWeight: 'bold',
-              borderBottom: '1px solid #000',
-              paddingBottom: '5px'
-            }}
-          >
-            CERTIFICATE CODE:
-          </p>
-          <p style={{ borderBottom: '1px solid #000' }}>
-            {selectedCertifiate.certificateCode}
-          </p>
-          <p style={{ fontWeight: 'bold', marginTop: '0px' }}>
-            RECEIVED IDENTITY:
-          </p>
-          <p style={{ marginTop: '0px' }}>
-            {selectedCertifiate.receivedIdentityNumber}
-          </p>
-          <p style={{ fontWeight: 'bold' }}>RECEIVED NAME:</p>
-          <p>{selectedCertifiate.receivedName}</p>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// table certs
-const IssuedCertsOrdersTable: FC<IssuedCertsOrdersTableProps> = ({
-  certificates,
-  fetchData
-}) => {
-  const [open, setOpen] = useState(false);
-  const [selectedCertifiates, setSelectedCertificates] = useState<string[]>([]);
+function IssuedCertsOrdersTable() {
+  const [isTableLoading, setTableLoading] = useState<boolean>(true);
+  const [isLoading, setLoading] = useState<boolean>(false);
+  const [selectedCertifiates, setSelectedCertificates] = useState<
+    Certificate[]
+  >([]);
   const [selectedCertifiate, setSelectedCertificate] = useState<Certificate>();
-  const [selectedCertifiatesInformation, setSelectedCertificatesInformation] =
-    useState<Certificate[]>([]);
-  const [selectDeleteCertificateId, setSelectDeleteCertificateId] =
-    useState('');
-  const [openDelete, setOpenDelete] = useState(false);
-
-  const selectedBulkActions = selectedCertifiates.length > 0;
-  const [page, setPage] = useState<number>(0);
-  const [limit, setLimit] = useState<number>(5);
+  const [data, setData] = useState<Certificate[]>([]);
+  const [isOpenSignerTable, setOpenSignerTable] = useState<boolean>(false);
+  const [isOpenCertDetail, setOpenCertDetail] = useState<boolean>(false);
   const [filters, setFilters] = useState<Filters>({
     certificateStatus: null,
-    certificateName: null,
-    receivedName: null
+    certificateName: '',
+    receivedName: '',
+    sorting: '',
+    pageNumber: 0,
+    pageSize: 5
   });
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [sortedCertificateOrders, setSortedCertificateOrders] = useState([]);
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [sortColumn, setSortColumn] = useState(null);
-  const [isSorted, setIsSorted] = useState(false);
-  const [filteredData, setFilteredData] = useState([]);
-  const [paginatedSortedData, setPaginatedSortedData] = useState([]);
 
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [openConfirmDelete, setOpenConfirmDelete] = useState<boolean>(false);
+  const [issuerAddress, setIssuerAddress] = useState<string>();
+  const [isResetFilter, setResetFilter] = useState<boolean>(false);
+  const { isChangeData, authToken } = useStore();
+  const theme = useTheme();
+
+  // Xử lý debounce trong useEffect
   useEffect(() => {
-    const filteredData = applyFilters(certificates, filters);
-    const paginatedData = applyPagination(filteredData, page, limit);
-
-    setFilteredData(filteredData);
-    setPaginatedSortedData(paginatedData);
-  }, [certificates, filters, page, limit]);
-
-  const handleSort = async (column) => {
-    let newSortDirection;
-
-    if (sortColumn === column && sortDirection === 'desc' && isSorted) {
-      setSortedCertificateOrders(certificates);
-      setSortDirection(null);
-      setSortColumn(null);
-      setIsSorted(false);
+    if (isResetFilter) {
+      fetchData();
+      setResetFilter(false);
       return;
     }
 
-    if (sortColumn === column && sortDirection === 'asc') {
-      newSortDirection = 'desc';
-    } else if (sortColumn === column && sortDirection === 'desc') {
-      newSortDirection = null;
-    } else {
-      newSortDirection = 'asc';
+    const timeout = setTimeout(fetchData, 500);
+    return () => clearTimeout(timeout);
+  }, [filters]);
+
+  useEffect(() => {
+    if (isChangeData) {
+      fetchData();
+    }
+  }, [isChangeData]);
+
+  useEffect(() => {
+    const getIssuerAddress = async () => {
+      const wallet = await BrowserWallet.enable('eternl');
+      const [address] = await wallet.getUsedAddresses();
+      setIssuerAddress(address);
+    };
+
+    getIssuerAddress();
+  }, []);
+
+  // #region function
+  // label status
+  const getStatusLabel = (status: number) => {
+    const statusMap = {
+      1: { text: 'Draft', color: 'secondary' },
+      2: { text: 'Signed', color: 'primary' },
+      3: { text: 'Sent', color: 'success' },
+      4: { text: 'Banned', color: 'error' }
+    };
+
+    const { text, color } = statusMap[status];
+    return <Label color={color}>{text}</Label>;
+  };
+
+  const getStatusContactLabel = (contactStatus: ContactStatus): JSX.Element => {
+    const statusMap: Record<ContactStatus, { text: string; color: any }> = {
+      '1': { text: 'Pending', color: 'info' },
+      '2': { text: 'Connected', color: 'success' }
+    };
+
+    const { text, color } = statusMap[contactStatus] ?? {
+      text: 'Pending',
+      color: 'info'
+    };
+    return <Label color={color}>{text}</Label>;
+  };
+
+  const getSigningTypeLabel = (certSigningType: SigningType) => {
+    const signingTypes: Record<SigningType, { text: string; color: any }> = {
+      '1': { text: 'Single Sign', color: 'secondary' },
+      '2': { text: 'Multiple Sign', color: 'primary' }
+    };
+
+    const { text, color } = signingTypes[certSigningType] ?? {
+      text: 'Unknown Sign Type',
+      color: 'secondary'
+    };
+
+    return <Label color={color}>{text}</Label>;
+  };
+
+  const isEnableSign = (certificate: Certificate) => {
+    if (!issuerAddress) {
+      return false;
+    }
+    if (certificate.status === CertificateStatus.Draft) {
+      return true;
+    }
+    if (issuerAddress === certificate.issuer.receiveAddress) {
+      return false;
+    }
+    if (certificate.signingType === SigningType.MultipleSigning) {
+      const signerList = JSON.parse(
+        certificate.mulSignJson
+      ) as CertificateMulSign[];
+      const signer = signerList?.find((s) => s.issuerAddress === issuerAddress);
+      return signer ? !signer.isSigned : false;
     }
 
-    const sortedData = [...certificates].sort((a, b) => {
-      if (column === 'signedDate') {
-        const dateA = new Date(a[column]);
-        const dateB = new Date(b[column]);
-        if (dateA < dateB) {
-          return newSortDirection === 'asc' ? -1 : 1;
-        }
-        if (dateA > dateB) {
-          return newSortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
+    return false;
+  };
+
+  const isEnableSent = (certificate: Certificate) => {
+    if (certificate.status >= CertificateStatus.Sent) {
+      return false;
+    }
+    if (certificate.signingType === SigningType.SingleSigning) {
+      return certificate.status === CertificateStatus.Signed;
+    } else {
+      const signerList = JSON.parse(
+        certificate.mulSignJson
+      ) as CertificateMulSign[];
+      return (
+        issuerAddress == certificate.issuer.receiveAddress &&
+        signerList?.every((x) => x.isSigned)
+      );
+    }
+  };
+
+  const hasPendingSignatures = (certificate: Certificate) => {
+    if (certificate.status < CertificateStatus.Signed) {
+      return false;
+    }
+    if (certificate.signingType == SigningType.MultipleSigning) {
+      const signerList = JSON.parse(
+        certificate.mulSignJson
+      ) as CertificateMulSign[];
+
+      return (
+        issuerAddress == certificate.issuer.receiveAddress &&
+        signerList?.some((x) => !x.isSigned)
+      );
+    }
+
+    return false;
+  };
+
+  const isEnableSigner = (certificate: Certificate) => {
+    return (
+      certificate.signingType === SigningType.MultipleSigning &&
+      certificate.issuer.receiveAddress === issuerAddress
+    );
+  };
+
+  // handle select checkbox
+  const handleSelectOne = (cert: Certificate): void => {
+    setSelectedCertificates((prevList: Certificate[]) => {
+      if (prevList.some((x) => x.id == cert.id)) {
+        return prevList.filter((x) => x.id != cert.id);
       } else {
-        if (a[column] < b[column]) {
-          return newSortDirection === 'asc' ? -1 : 1;
-        }
-        if (a[column] > b[column]) {
-          return newSortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
+        return [...prevList, cert];
+      }
+    });
+  };
+
+  const handleSelectAll = (event: ChangeEvent<HTMLInputElement>): void => {
+    event.target.checked
+      ? setSelectedCertificates(data)
+      : setSelectedCertificates([]);
+  };
+
+  // view cert detail
+  const handleOpenCert = (certificate: Certificate) => {
+    setSelectedCertificate(certificate);
+    setOpenCertDetail(true);
+  };
+  const handleCloseCert = () => {
+    setSelectedCertificate(null);
+    setOpenCertDetail(false);
+  };
+
+  // open signer table
+  const handleOpenSignerTable = (certificate: Certificate) => {
+    setOpenSignerTable(true);
+    setSelectedCertificate(certificate);
+  };
+  const handleCloseSignerTable = () => {
+    setOpenSignerTable(false);
+    setSelectedCertificate(null);
+  };
+
+  // open confirm delete
+  const handleOpenConfirmDelete = (certificate: Certificate) => {
+    setOpenConfirmDelete(true);
+    setSelectedCertificate(certificate);
+  };
+  const handleCloseConfirmDelete = () => {
+    setOpenConfirmDelete(false);
+    setSelectedCertificate(null);
+  };
+
+  // download attachment
+  const handleDownloadFile = async (certificate: Certificate) => {
+    const ipfsGatewayUrl = `https://ipfs.io/ipfs/${certificate.attachmentIpfs}`;
+
+    try {
+      enqueueSnackbar('Downloading, please wait...', {variant: 'info'});
+      const response = await fetch(ipfsGatewayUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch the file from IPFS');
+      }
+
+      const blob = await response.blob();
+      const fileType = blob.type || 'application/octet-stream';
+      const fileName = `downloaded-file.${fileType.split('/')[1] || 'bin'}`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url); // Clean up the temporary URL
+    } catch (error) {
+      console.error('Download error:', error);
+      enqueueSnackbar(
+        'Failed to download file. Please check the IPFS hash or try again.',
+        { variant: 'error' }
+      );
+    }
+  };
+
+  // #endregion
+
+  // #region filter
+  const handleSort = async (column: {
+    key: string;
+    name: string;
+    sort?: string;
+    isSort?: boolean;
+  }) => {
+    if (!column.isSort) {
+      return;
+    }
+    
+    if (!column.sort) {
+      column.sort = 'asc';
+    } else if (column.sort == 'desc') {
+      column.sort = 'asc';
+    } else {
+      column.sort = 'desc';
+    }
+
+    columns.forEach(x => {
+      if (x.key !== column.key) {
+        x.sort = ''; 
+      } else {
+        x.sort = column.sort; 
       }
     });
 
-    const filteredData = applyFilters(sortedData, filters);
-    const paginatedData = applyPagination(filteredData, page, limit);
-
-    setFilteredData(filteredData);
-    setPaginatedSortedData(paginatedData);
-
-    setSortedCertificateOrders(paginatedData);
-    setSortDirection(newSortDirection);
-    setSortColumn(column);
-    setIsSorted(true);
+    let sorting = `${column.key} ${column.sort}`;
+    setFilters({
+      ...filters,
+      sorting
+    });
   };
 
-  const filteredCertificates = applyFilters(certificates, filters);
-  const paginatedCertificateOrders = applyPagination(
-    filteredCertificates,
-    page,
-    limit
-  );
-
-  const renderSortIcon = (columnKey) => {
-    if (sortColumn === columnKey) {
-      return (
-        <>{sortDirection === 'asc' ? <MdArrowUpward /> : <MdArrowDownward />}</>
-      );
-    }
-    return null;
+  const handlePageNumberChange = (_: any, newPage: number) => {
+    console.log(newPage);
+    setFilters({
+      ...filters,
+      pageNumber: newPage
+    });
   };
 
-  const handleReload = async () => {
-    try {
-      setIsLoading(true);
-      await fetchData();
-      setIsLoading(false);
-      enqueueSnackbar('Load Successful!', { variant: 'success' });
-    } catch (error) {
-      setIsLoading(false);
-      enqueueSnackbar('Load Error!', { variant: 'error' });
-    }
+  const handlePageSizeChange = (event: any) => {
+    setFilters({
+      ...filters,
+      pageSize: parseInt(event.target.value)
+    });
   };
-
-  const handleClickOpen = (certificate) => {
-    setSelectedCertificate(certificate);
-    setOpen(true);
-  };
-
-  const handleClose = () => {
-    setOpen(false);
-  };
-
-  const statusOptions = [
-    {
-      id: 'all',
-      name: 'All'
-    },
-    {
-      id: 1,
-      name: 'Draft'
-    },
-    {
-      id: 2,
-      name: 'Signed'
-    },
-    {
-      id: 3,
-      name: 'Sent'
-    },
-    {
-      id: 4,
-      name: 'Banned'
-    }
-  ];
 
   const handleFilterChange = (filterName: string, value: any) => {
-    if (filterName === 'certificateStatus') {
-      let newValue = null;
-      if (value !== 'all') {
-        newValue = value;
-      }
-      setFilters((prevFilters) => ({
-        ...prevFilters,
-        certificateStatus: newValue
-      }));
-    } else {
-      setFilters((prevFilters) => ({
-        ...prevFilters,
-        [filterName]: value
-      }));
-    }
+    setFilters((prevFilters) => ({
+      ...prevFilters,
+      [filterName]:
+        filterName === 'certificateStatus' && value === 'all' ? null : value
+    }));
+  };
+  // #endregion
+
+  // #region API
+
+  const resetData = () => {
+    columns.forEach(column => {
+      column.sort = ''; 
+    })
+    setResetFilter(true);
+    setSelectedCertificates([]);
+    setFilters({
+      certificateStatus: null,
+      certificateName: null,
+      receivedName: null,
+      sorting: '',
+      pageNumber: 0,
+      pageSize: 5
+    });
   };
 
-  const handleSelectAllCertificateOrders = (
-    event: ChangeEvent<HTMLInputElement>
-  ): void => {
-    setSelectedCertificates(
-      event.target.checked
-        ? paginatedCertificateOrders.map(
-            (certificate) => certificate.certificateID
-          )
-        : []
-    );
-    setSelectedCertificatesInformation(
-      event.target.checked ? paginatedCertificateOrders : []
-    );
-  };
-
-  const handleSelectOneCertificateOrder = (
-    _event: ChangeEvent<HTMLInputElement>,
-    certificateId: string,
-    certificate: Certificate
-  ): void => {
-    if (!selectedCertifiates.includes(certificateId)) {
-      setSelectedCertificates((prevSelected) => [
-        ...prevSelected,
-        certificateId
-      ]);
-      setSelectedCertificatesInformation((prevSelectedInformation) => [
-        ...prevSelectedInformation,
-        certificate
-      ]);
-    } else {
-      setSelectedCertificates((prevSelected) =>
-        prevSelected.filter((id) => id !== certificateId)
-      );
-
-      setSelectedCertificatesInformation((prevSelected) =>
-        prevSelected.filter((cert) => cert.certificateID !== certificateId)
-      );
-    }
-  };
-
-  const handlePageChange = (_event: any, newPage: number): void => {
-    setIsSorted(false);
-    setPage(newPage);
-  };
-
-  const handleLimitChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    setLimit(parseInt(event.target.value));
-  };
-
-  const selectedSomeCertificateOrders =
-    selectedCertifiates.length > 0 &&
-    selectedCertifiates.length < paginatedCertificateOrders.length;
-  const selectedAllCertificateOrders =
-    selectedCertifiates.length === paginatedCertificateOrders.length;
-  const theme = useTheme();
-
-  function handleSign(certificate: Certificate) {
+  const fetchData = async () => {
+    let input = { ...filters };
+    input.pageNumber = filters.pageNumber + 1;
     try {
-      let myPromise = new Promise<void>(async function (myResolve, myReject) {
-        const wallet = await BrowserWallet.enable('eternl');
-        // prepare forgingScript
-        const usedAddress = await wallet.getUsedAddresses();
-        const address = usedAddress[0];
-        const forgingScript = ForgeScript.withOneSignature(address);
-        const tx = new Transaction({ initiator: wallet });
-        // define asset#1 metadata
-        const assetMetadata1: AssetMetadata = {
-          certificateName: certificate.certificateName,
-          classification: certificate.classification,
-          image: certificate.ipfsLink,
-          mediaType: 'image/jpg',
-          receivedName: certificate.receivedName,
-          yearOfGraduation: certificate.yearOfGraduation,
-          identity: certificate.receivedIdentityNumber
-        };
-        const asset1: Mint = {
-          assetName: certificate.certificateType + certificate.certificateCode,
-          assetQuantity: '1',
-          metadata: assetMetadata1,
-          label: '721',
-          recipient: address
-        };
-        console.log(asset1);
-        console.log(assetMetadata1);
+      setTableLoading(true);
+      const response = await axiosInstance.post(
+        '/Certificate/get-certificate-issued',
+        input
+      );
+      setTableLoading(false);
 
-        tx.mintAsset(forgingScript, asset1);
-        const unsignedTx = await tx.build();
-        const signedTx = await wallet.signTx(unsignedTx);
-        const txHash = await wallet.submitTx(signedTx);
-        console.log('txHash');
-        console.log(txHash);
-        myResolve(); // when successful
-        myReject(); // when error
-      });
+      if (response.status == HTTP_STATUS.OK) {
+        const { data } = response.data;
 
-      // "Consuming Code" (Must wait for a fulfilled Promise)
-      myPromise
-        .then(function () {
-          /* code if successful */
-          fetch(API_URL + '/Certificate/issued/sign', {
-            method: 'POST',
-            headers: {
-              Accept: 'application/json',
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(certificate.certificateID)
-          }).then(() => {
-            // Xử lý phản hồi ở đây
-            enqueueSnackbar('Sign Successful!', { variant: 'success' });
-          });
-        })
-        .catch(function () {
-          enqueueSnackbar('Sign Error!', { variant: 'error' });
-        });
+        const lstCert = (data.items as Certificate[])?.map((x) => ({
+          ...x,
+          attachmentIpfs: x.attachmentJson
+            ? JSON.parse(x.attachmentJson).ipfsLink
+            : ''
+        }));
+
+        setData(lstCert);
+        setTotalCount(data.totalCount);
+      } else {
+        setData([]);
+      }
     } catch (error) {
+      setTableLoading(false);
+      setData([]);
+      console.error(error);
+    }
+  };
+
+  async function signCert(certificate: Certificate) {
+    if (!issuerAddress) {
+      enqueueSnackbar('wallet not found', { variant: 'error' });
+      return;
+    }
+    if (certificate.signingType == SigningType.SingleSigning) {
+      handleSignCert(certificate);
+    } else if (certificate.signingType == SigningType.MultipleSigning) {
+      handleMultipleSignCert(certificate);
+    }
+  }
+
+  async function handleSignCert(certificate: Certificate) {
+    try {
+      const wallet = await BrowserWallet.enable('eternl');
+      const forgingScript = ForgeScript.withOneSignature(issuerAddress);
+      const tx = new Transaction({ initiator: wallet });
+
+      const assetMetadata: AssetMetadata = {
+        certificateName: certificate.name,
+        classification: certificate.classification,
+        image: certificate.ipfsLink,
+        mediaType: 'image/jpg',
+        receivedName: certificate.receiver.name,
+        yearOfGraduation: certificate.graduationYear,
+        identity: certificate.receiverIdentityNumber
+      };
+
+      if (certificate.attachmentJson) {
+        let attachment = JSON.parse(certificate.attachmentJson);
+        assetMetadata['attachmentIpfs'] = attachment.ipfsLink;
+        assetMetadata['attachmentHash'] = attachment.hash;
+      }
+
+      const asset: Mint = {
+        assetName: `${slugify(certificate.receiver.name)}-${
+          certificate.receiverIdentityNumber
+        }`,
+        assetQuantity: '1',
+        metadata: assetMetadata,
+        label: '721',
+        recipient: issuerAddress
+      };
+
+      tx.mintAsset(forgingScript, asset);
+      const unsignedTx = await tx.build();
+      const signedTx = await wallet.signTx(unsignedTx);
+      await wallet.submitTx(signedTx);
+
+      setLoading(true);
+      await axiosInstance.post('/Certificate/sign-certificate', {
+        certificateId: certificate.id,
+        signingType: SigningType.SingleSigning,
+        signHash: signedTx,
+        issuerAddress: issuerAddress
+      });
+      setLoading(false);
+      enqueueSnackbar('Sign Successful!', { variant: 'success' });
+      fetchData();
+    } catch (error) {
+      setLoading(false);
+      console.error('Signing error:', error);
       enqueueSnackbar('Sign Error!', { variant: 'error' });
     }
   }
 
-  function textToHex(text) {
-    let hex = '';
+  async function handleMultipleSignCert(certificate: Certificate) {
+    try {
+      const signerLst = JSON.parse(
+        certificate.mulSignJson
+      ) as CertificateMulSign[];
+      let unsignedTx = '';
 
-    for (let i = 0; i < text.length; i++) {
-      let charCode = text.charCodeAt(i).toString(16);
-      hex += ('00' + charCode).slice(-2); // Ensure leading zero for single digit
-    }
-
-    return hex;
-  }
-
-  function handleBan(certificateId) {
-    enqueueSnackbar('Ban Error!', { variant: 'error' });
-    console.log(certificateId);
-    // fetch(API_URL + '/Certificate/issued/ban', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Accept': 'application/json',
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify(certificateId)
-    // })
-    //   .then(() => {
-    //     // Xử lý phản hồi ở đây
-    //     enqueueSnackbar('Ban Successful!', { variant: 'success' });
-    //   })
-    //   .catch(() => {
-    //     // Xử lý lỗi ở đây
-    //     enqueueSnackbar('Ban Error!', { variant: 'error' });
-    //   });
-  }
-
-  function handleSelectDelete(certificateId) {
-    setSelectDeleteCertificateId(certificateId);
-    setOpenDelete(true);
-  }
-
-  function handleCloseDelete() {
-    setOpenDelete(false);
-  }
-
-  function handleDelete(certificateId) {
-    var certs = [];
-    certs.push(certificateId);
-    fetch(API_URL + '/Certificate/issued/delete-multiple', {
-      method: 'DELETE',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(certs)
-    })
-      .then(() => {
-        // Xử lý phản hồi ở đây
-        enqueueSnackbar('Delete Successful!', { variant: 'success' });
-      })
-      .catch(() => {
-        // Xử lý lỗi ở đây
-        enqueueSnackbar('Delete Error!', { variant: 'error' });
-      });
-    setOpenDelete(false);
-  }
-
-  async function handleSend(certificate) {
-    let myPromise = new Promise<void>(async function (myResolve, myReject) {
       const wallet = await BrowserWallet.enable('eternl');
-      // prepare forgingScript
+      const tx = new Transaction({ initiator: wallet });
+
+      if (certificate.issuer.receiveAddress == issuerAddress) {
+        const forgingScript = ForgeScript.withOneSignature(issuerAddress);
+        const assetMetadata: AssetMetadata = {
+          certificateName: certificate.name,
+          classification: certificate.classification,
+          image: certificate.ipfsLink,
+          mediaType: 'image/jpg',
+          receivedName: certificate.receiver.name,
+          yearOfGraduation: certificate.graduationYear,
+          identity: certificate.receiverIdentityNumber
+        };
+
+        if (certificate.attachmentJson) {
+          let attachment = JSON.parse(certificate.attachmentJson);
+          assetMetadata['attachmentIpfs'] = attachment.ipfsLink;
+          assetMetadata['attachmentHash'] = attachment.hash;
+        }
+
+        const asset: Mint = {
+          assetName: `${slugify(certificate.receiver.name)}-${
+            certificate.receiverIdentityNumber
+          }`,
+          assetQuantity: '1',
+          metadata: assetMetadata,
+          label: '721',
+          recipient: issuerAddress
+        };
+        tx.mintAsset(forgingScript, asset);
+        const signerAddresses =
+          signerLst?.map((x) => x.issuerAddress).filter(Boolean) || [];
+        tx.setRequiredSigners([issuerAddress, ...signerAddresses]);
+        unsignedTx = await tx.build();
+      } else {
+        unsignedTx = certificate.signHash;
+      }
+      const signedTx = await wallet.signTx(unsignedTx, true);
+
+      signerLst.forEach((signer) => {
+        if (signer.issuerAddress === issuerAddress) {
+          signer.isSigned = true;
+        }
+      });
+      if (signerLst.every((signer) => signer.isSigned)) {
+        await wallet.submitTx(signedTx);
+      }
+      // api cập nhật certificate
+      setLoading(true);
+      await axiosInstance.post('/Certificate/sign-certificate', {
+        certificateId: certificate.id,
+        signingType: SigningType.MultipleSigning,
+        signHash: signedTx,
+        issuerAddress: issuerAddress
+      });
+
+      setLoading(false);
+      enqueueSnackbar('Sign Successful!', { variant: 'success' });
+      fetchData();
+    } catch (error) {
+      console.log(error);
+      setLoading(false);
+      const regex = /missingSignatories/;
+      if (regex.test(error)) {
+        enqueueSnackbar('Not enough signatures', { variant: 'error' });
+      } else {
+        enqueueSnackbar('Signed error', { variant: 'error' });
+      }
+    }
+  }
+
+  async function handleSendCert(certificate: Certificate) {
+    setLoading(true);
+    try {
+      const wallet = await BrowserWallet.enable('eternl');
       await wallet.getUsedAddresses();
       const policyId = await wallet.getPolicyIds();
       const tx = new Transaction({ initiator: wallet });
-      // define asset#1 metadata
-      const assetName = textToHex(
-        certificate.certificateType + certificate.certificateCode
-      );
-      const asset1: Asset = {
-        unit: policyId[0] + assetName,
+
+      const assetName = `${slugify(certificate.receiver.name)}-${
+        certificate.receiverIdentityNumber
+      }`;
+      const asset: Asset = {
+        unit: policyId[0] + textToHex(assetName),
         quantity: '1'
       };
-      console.log(certificate.receivedAddressWallet);
 
-      tx.sendAssets(certificate.receivedAddressWallet, [asset1]);
+      tx.sendAssets(certificate.receiverAddressWallet, [asset]);
       const unsignedTx = await tx.build();
-      const signedTx = await wallet.signTx(unsignedTx);
-      const txHash = await wallet.submitTx(signedTx);
-      console.log('txHash');
-      console.log(txHash);
-      myResolve(); // when successful
-      myReject(); // when error
-    });
+      const signedTx = await wallet.signTx(unsignedTx, true);
+      await wallet.submitTx(signedTx);
 
-    // "Consuming Code" (Must wait for a fulfilled Promise)
-    myPromise
-      .then(function () {
-        /* code if successful */
-        fetch(API_URL + '/Certificate/issued/send', {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(certificate.certificateID)
-        })
-          .then(() => {
-            // Xử lý phản hồi ở đây
-            enqueueSnackbar('Send Successful!', { variant: 'success' });
-          })
-          .catch((error) => {
-            // Xử lý lỗi ở đây
-            console.log(error);
-            enqueueSnackbar('Send Error!', { variant: 'error' });
-          });
-      })
-      .catch(function () {
-        enqueueSnackbar('Send Error!', { variant: 'error' });
+      const response = await fetch(API_URL + 'Certificate/send-certificate', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify(certificate.id)
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to send certificate: ' + response.statusText);
+      }
+
+      enqueueSnackbar('Send Successful!', { variant: 'success' });
+      fetchData();
+    } catch (error) {
+      setLoading(false);
+      console.error('Error:', error);
+      enqueueSnackbar('Send Error!', { variant: 'error' });
+    } finally {
+      setLoading(false);
+    }
   }
 
+  async function handleDeleteCert() {
+    setOpenConfirmDelete(false);
+    try {
+      if (selectedCertifiate.status === CertificateStatus.Sent) {
+        enqueueSnackbar(
+          'The certificate that has been sent cannot be deleted.',
+          { variant: 'error' }
+        );
+        return;
+      }
+      setLoading(true);
+      await axiosInstance.delete(`Certificate/${selectedCertifiate.id}`);
+      setLoading(false);
+      enqueueSnackbar('Delete Successful!', { variant: 'success' });
+      setFilters({
+        ...filters,
+        pageNumber: 0,
+        pageSize: 5
+      });
+    } catch (error) {
+      setLoading(false);
+      enqueueSnackbar('An error occurred while deleting the certificate.', {
+        variant: 'error'
+      });
+    }
+  }
+
+  // #endregion
+  if (isLoading) {
+    return <Loading />;
+  }
   return (
     <Card>
-      {selectedBulkActions && (
+      {selectedCertifiates.length > 0 ? (
         <Box flex={1} p={2}>
-          <BulkActions certificates={selectedCertifiatesInformation} />
+          <BulkActions
+            certificates={selectedCertifiates}
+            loadData={resetData}
+          />
         </Box>
-      )}
-      {!selectedBulkActions && (
+      ) : (
         <CardHeader
           action={
             <Box width={600}>
               <div className={styles.box_container}>
-                <div
-                  className={`${styles.box_icon} ${
-                    isLoading ? styles.rotate : ''
-                  }`}
-                >
-                  <FaSpinner
-                    size={22}
-                    className={`${styles.spinner} ${
-                      isLoading ? styles.rotate : ''
-                    }`}
-                    onClick={handleReload}
-                    style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }} // Change cursor style when isLoading is true
-                  />
-                </div>
+                <Tooltip title={'Reset'} arrow>
+                  <Button onClick={resetData}>
+                    <FaSpinner
+                      size={22}
+                      style={{
+                        cursor: isTableLoading ? 'not-allowed' : 'pointer'
+                      }}
+                    />
+                  </Button>
+                </Tooltip>
                 <div className={styles.box_filter}>
                   <FormControl fullWidth variant="outlined">
                     <InputLabel>Status</InputLabel>
@@ -696,174 +744,150 @@ const IssuedCertsOrdersTable: FC<IssuedCertsOrdersTableProps> = ({
       )}
       <Divider />
       <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell padding="checkbox">
-                <Checkbox
-                  color="primary"
-                  checked={selectedAllCertificateOrders}
-                  indeterminate={selectedSomeCertificateOrders}
-                  onChange={handleSelectAllCertificateOrders}
-                />
-              </TableCell>
-              {columns.map((column) => (
-                <TableCell
-                  key={column.key}
-                  onClick={() => handleSort(column.key)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {column.name}
-                  {renderSortIcon(column.key)}
-                </TableCell>
-              ))}
-              <TableCell align="right">Certificate status</TableCell>
-              <TableCell align="right">Contact status</TableCell>
-              <TableCell align="right"></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {isSorted
-              ? paginatedSortedData.map((certificate) => {
-                  const isCertificateOrderSelected =
-                    selectedCertifiates.includes(certificate.certificateID);
-                  return (
-                    <TableRow
-                      hover
-                      key={certificate.certificateID}
-                      selected={isCertificateOrderSelected}
+        {isTableLoading ? (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              height: '400px',
+              flexDirection: 'column'
+            }}
+          >
+            <CircularProgress
+              size={60}
+              thickness={5}
+              style={{ color: '#3f51b5' }}
+            />
+            <Typography variant="h6" style={{ marginTop: '16px' }}>
+              Loading data, please wait...
+            </Typography>
+          </div>
+        ) : (
+          <Fade in={!isTableLoading} timeout={500}>
+            <Table stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      color="primary"
+                      checked={selectedCertifiates.length === data.length}
+                      onChange={handleSelectAll}
+                    />
+                  </TableCell>
+                  {columns.map((column) => (
+                    <TableCell
+                      key={column.key}
+                      onClick={() => handleSort(column)}
+                      style={{ cursor: 'pointer' }}
+                      align={
+                        column.align as
+                          | 'left'
+                          | 'center'
+                          | 'right'
+                          | 'justify'
+                          | 'inherit'
+                      }
                     >
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          color="primary"
-                          checked={isCertificateOrderSelected}
-                          onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                            handleSelectOneCertificateOrder(
-                              event,
-                              certificate.certificateID,
-                              certificate
+                      {column.name}
+                      {column.sort === 'asc' && <MdArrowDownward />}
+                      {column.sort === 'desc' && <MdArrowUpward />}
+                    </TableCell>
+                  ))}
+                  <TableCell align="center">Status</TableCell>
+                  <TableCell align="center">Contact status</TableCell>
+                  <TableCell align="right"></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {data.map((certificate, index) => (
+                  <TableRow
+                    hover
+                    key={index}
+                    selected={selectedCertifiates.includes(certificate)}
+                  >
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        color="primary"
+                        checked={selectedCertifiates.includes(certificate)}
+                        value={selectedCertifiates.includes(certificate)}
+                        onChange={() => handleSelectOne(certificate)}
+                      />
+                    </TableCell>
+                    <TableCell align="left">
+                      <Typography
+                        variant="body1"
+                        fontWeight="bold"
+                        color="text.primary"
+                        gutterBottom
+                        noWrap
+                      >
+                        {certificate.code}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="left">
+                      <Typography
+                        variant="body1"
+                        fontWeight="bold"
+                        color="text.primary"
+                        gutterBottom
+                        noWrap
+                      >
+                        {certificate.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" noWrap>
+                        {certificate.classification}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="left">
+                      <Typography
+                        variant="body1"
+                        fontWeight="bold"
+                        color="text.primary"
+                        gutterBottom
+                        noWrap
+                      >
+                        {certificate.receiver.name}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Typography
+                        variant="body1"
+                        fontWeight="bold"
+                        color="text.primary"
+                        gutterBottom
+                        noWrap
+                      >
+                        {certificate.signedDate
+                          ? new Date(certificate.signedDate).toLocaleDateString(
+                              'en-GB'
                             )
-                          }
-                          value={isCertificateOrderSelected}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {certificate.certificateCode}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {certificate.certificateName}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          noWrap
-                        >
-                          {certificate.classification}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {certificate.receivedName}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {new Date(certificate.signedDate).toLocaleDateString(
-                            'en-GB'
-                          )}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        {getStatusLabel(certificate.certificateStatus)}
-                      </TableCell>
-                      <TableCell align="right">
-                        {getStatusContactLabel(certificate.contactStatus)}
-                      </TableCell>
-                      <TableCell align="right">
-                        {certificate.certificateStatus == 1 ? (
-                          <>
-                            <Tooltip title="Sign" arrow>
-                              <IconButton
-                                sx={{
-                                  '&:hover': {
-                                    background: theme.colors.primary.lighter
-                                  },
-                                  color: theme.palette.primary.main
-                                }}
-                                color="inherit"
-                                size="small"
-                                onClick={() => handleSign(certificate)}
-                              >
-                                <EditTwoToneIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete" arrow>
-                              <IconButton
-                                sx={{
-                                  '&:hover': {
-                                    background: theme.colors.primary.lighter
-                                  },
-                                  color: theme.palette.error.main
-                                }}
-                                color="error"
-                                size="small"
-                                onClick={() =>
-                                  handleSelectDelete(certificate.certificateID)
-                                }
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </>
-                        ) : certificate.certificateStatus == 2 ? (
-                          certificate.contactStatus == '2' ? (
-                            <Tooltip title="Send" arrow>
-                              <IconButton
-                                sx={{
-                                  '&:hover': {
-                                    background: theme.colors.primary.lighter
-                                  },
-                                  color: theme.palette.primary.main
-                                }}
-                                color="inherit"
-                                size="small"
-                                onClick={() => handleSend(certificate)}
-                              >
-                                <SendIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          ) : (
-                            <></>
-                          )
-                        ) : certificate.certificateStatus == 3 ? (
-                          <Tooltip title="Ban" arrow>
+                          : 'N/A'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      {getSigningTypeLabel(certificate.signingType)}
+                    </TableCell>
+                    <TableCell align="center">
+                      {getStatusLabel(certificate.status)}
+                    </TableCell>
+                    <TableCell align="center">
+                      {getStatusContactLabel(certificate.contactStatus)}
+                    </TableCell>
+                    <TableCell align="right">
+                      {isEnableSign(certificate) && (
+                        <>
+                          <Tooltip
+                            title={
+                              certificate.signingType ===
+                                SigningType.MultipleSigning &&
+                              certificate.issuer.receiveAddress ===
+                                issuerAddress
+                                ? 'Submit'
+                                : 'Sign'
+                            }
+                            arrow
+                          >
                             <IconButton
                               sx={{
                                 '&:hover': {
@@ -871,197 +895,92 @@ const IssuedCertsOrdersTable: FC<IssuedCertsOrdersTableProps> = ({
                                 },
                                 color: theme.palette.primary.main
                               }}
-                              color="error"
                               size="small"
-                              onClick={() =>
-                                handleBan(certificate.certificateID)
-                              }
+                              onClick={() => signCert(certificate)}
                             >
-                              <BlockIcon color="error" fontSize="small" />
+                              <EditTwoToneIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                        ) : (
-                          <></>
-                        )}
-                        <Tooltip title="View" arrow>
-                          <IconButton
-                            sx={{
-                              '&:hover': {
-                                background: theme.colors.info.lighter
-                              },
-                              color: theme.palette.info.main
-                            }}
-                            color="inherit"
-                            size="small"
-                            onClick={() => handleClickOpen(certificate)}
-                          >
-                            <VisibilityIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              : paginatedCertificateOrders.map((certificate) => {
-                  const isCertificateOrderSelected =
-                    selectedCertifiates.includes(certificate.certificateID);
-                  return (
-                    <TableRow
-                      hover
-                      key={certificate.certificateID}
-                      selected={isCertificateOrderSelected}
-                    >
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          color="primary"
-                          checked={isCertificateOrderSelected}
-                          onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                            handleSelectOneCertificateOrder(
-                              event,
-                              certificate.certificateID,
-                              certificate
-                            )
-                          }
-                          value={isCertificateOrderSelected}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {certificate.certificateCode}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {certificate.certificateName}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          noWrap
-                        >
-                          {certificate.classification}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {certificate.receivedName}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {new Date(certificate.signedDate).toLocaleDateString(
-                            'en-GB'
+
+                          {certificate.issuer.receiveAddress ==
+                            issuerAddress && (
+                            <>
+                              <Tooltip title="Delete" arrow>
+                                <IconButton
+                                  sx={{
+                                    '&:hover': {
+                                      background: theme.colors.primary.lighter
+                                    },
+                                    color: theme.palette.error.main
+                                  }}
+                                  size="small"
+                                  onClick={() =>
+                                    handleOpenConfirmDelete(certificate)
+                                  }
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <ConfirmDialog
+                                open={openConfirmDelete}
+                                title="Confirm Deletion"
+                                description="Are you sure you want to delete this certificate? This action cannot be undone."
+                                onConfirm={handleDeleteCert}
+                                onCancel={handleCloseConfirmDelete}
+                              />
+                            </>
                           )}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        {getStatusLabel(certificate.certificateStatus)}
-                      </TableCell>
-                      <TableCell align="right">
-                        {getStatusContactLabel(certificate.contactStatus)}
-                      </TableCell>
-                      <TableCell align="right">
-                        {certificate.certificateStatus == 1 ? (
-                          <>
-                            <Tooltip title="Sign" arrow>
-                              <IconButton
-                                sx={{
-                                  '&:hover': {
-                                    background: theme.colors.primary.lighter
-                                  },
-                                  color: theme.palette.primary.main
-                                }}
-                                color="inherit"
-                                size="small"
-                                onClick={() => handleSign(certificate)}
-                              >
-                                <EditTwoToneIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete" arrow>
-                              <IconButton
-                                sx={{
-                                  '&:hover': {
-                                    background: theme.colors.primary.lighter
-                                  },
-                                  color: theme.palette.error.main
-                                }}
-                                color="error"
-                                size="small"
-                                onClick={() =>
-                                  handleSelectDelete(certificate.certificateID)
-                                }
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </>
-                        ) : certificate.certificateStatus == 2 ? (
-                          certificate.contactStatus == '2' ? (
-                            <Tooltip title="Send" arrow>
-                              <IconButton
-                                sx={{
-                                  '&:hover': {
-                                    background: theme.colors.primary.lighter
-                                  },
-                                  color: theme.palette.primary.main
-                                }}
-                                color="inherit"
-                                size="small"
-                                onClick={() => handleSend(certificate)}
-                              >
-                                <SendIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          ) : (
-                            <></>
-                          )
-                        ) : certificate.certificateStatus == 3 ? (
-                          <Tooltip title="Ban" arrow>
-                            <IconButton
-                              sx={{
-                                '&:hover': {
-                                  background: theme.colors.primary.lighter
-                                },
-                                color: theme.palette.primary.main
-                              }}
-                              color="error"
-                              size="small"
-                              onClick={() =>
-                                handleBan(certificate.certificateID)
-                              }
-                            >
-                              <BlockIcon color="error" fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        ) : (
-                          <></>
-                        )}
-                        <Tooltip title="View" arrow>
+                        </>
+                      )}
+
+                      {isEnableSent(certificate) && (
+                        <Tooltip title="Send" arrow>
+                          <IconButton
+                            sx={{
+                              '&:hover': {
+                                background: theme.colors.primary.lighter
+                              },
+                              color: theme.palette.primary.main
+                            }}
+                            size="small"
+                            onClick={() => handleSendCert(certificate)}
+                          >
+                            <SendIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {hasPendingSignatures(certificate) && (
+                        <Tooltip title="Waiting for all signers to sign" arrow>
+                          <IconButton
+                            sx={{
+                              opacity: 0.5,
+                              color: theme.palette.primary.main, 
+                              cursor: 'default'
+                            }}
+                            size="small"
+                          >
+                            <SendIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      <Tooltip title="View" arrow>
+                        <IconButton
+                          sx={{
+                            '&:hover': {
+                              background: theme.colors.info.lighter
+                            },
+                            color: theme.palette.info.main
+                          }}
+                          size="small"
+                          onClick={() => handleOpenCert(certificate)}
+                        >
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+
+                      {certificate.attachmentIpfs && (
+                        <Tooltip title="Download attachment" arrow>
                           <IconButton
                             sx={{
                               '&:hover': {
@@ -1069,72 +988,67 @@ const IssuedCertsOrdersTable: FC<IssuedCertsOrdersTableProps> = ({
                               },
                               color: theme.palette.info.main
                             }}
-                            color="inherit"
                             size="small"
-                            onClick={() => handleClickOpen(certificate)}
+                            onClick={() => handleDownloadFile(certificate)}
                           >
-                            <VisibilityIcon fontSize="small" />
+                            <AttachFileIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-          </TableBody>
-        </Table>
+                      )}
+
+                      {isEnableSigner(certificate) && (
+                        <Tooltip title="Show Signer Table" arrow>
+                          <IconButton
+                            sx={{
+                              '&:hover': {
+                                background: theme.colors.info.lighter
+                              },
+                              color: theme.palette.info.main
+                            }}
+                            size="small"
+                            onClick={() => handleOpenSignerTable(certificate)}
+                          >
+                            <ListIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Fade>
+        )}
       </TableContainer>
       <Box p={2}>
-        <TablePagination
-          component="div"
-          count={filteredCertificates.length}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleLimitChange}
-          page={page}
-          rowsPerPage={limit}
-          rowsPerPageOptions={[5, 10, 25, 30]}
-        />
+        {!isTableLoading && (
+          <TablePagination
+            component="div"
+            count={totalCount}
+            onPageChange={handlePageNumberChange}
+            onRowsPerPageChange={handlePageSizeChange}
+            page={filters.pageNumber}
+            rowsPerPage={5}
+            rowsPerPageOptions={[5, 10, 25, 30]}
+          />
+        )}
       </Box>
-      <SimpleDialog
-        fullWidth={'md'}
-        maxWidth={'800md'}
-        open={open}
-        onClose={handleClose}
-        selectedCertifiate={selectedCertifiate}
-      />
-      <Dialog
-        open={openDelete}
-        onClose={handleCloseDelete}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-      >
-        <DialogTitle id="alert-dialog-title">
-          {'Are you sure to delete this certificate?'}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText id="alert-dialog-description">
-            You can't undo this operation
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDelete}>Disagree</Button>
-          <Button
-            onClick={() => handleDelete(selectDeleteCertificateId)}
-            autoFocus
-          >
-            Agree
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {selectedCertifiate && isOpenCertDetail && (
+        <CertDetail
+          open={isOpenCertDetail}
+          onClose={handleCloseCert}
+          selectedCertificate={selectedCertifiate}
+        />
+      )}
+      {selectedCertifiate && isOpenSignerTable && (
+        <SignersTable
+          open={isOpenSignerTable}
+          onClose={handleCloseSignerTable}
+          certificate={selectedCertifiate}
+        />
+      )}
     </Card>
   );
-};
-
-IssuedCertsOrdersTable.propTypes = {
-  certificates: PropTypes.array.isRequired
-};
-
-IssuedCertsOrdersTable.defaultProps = {
-  certificates: []
-};
+}
 
 export default IssuedCertsOrdersTable;

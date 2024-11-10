@@ -1,6 +1,8 @@
 
-import { API_CREATE_URL } from '@/constants/appConstants';
-import GetCookie from '@/hooks/getCookie';
+import Loading from '@/components/Loading';
+import { useStore } from '@/contexts/GlobalContext';
+import { HTTP_STATUS } from '@/enum/HTTP_SATUS';
+import axiosInstance from '@/lib/axiosIntance';
 import AddIcon from '@mui/icons-material/Add';
 import AddTwoToneIcon from '@mui/icons-material/AddTwoTone';
 import {
@@ -19,54 +21,72 @@ import { enqueueSnackbar } from 'notistack';
 import PropTypes from 'prop-types';
 import { useState } from 'react';
 
-function SimpleDialog(props) {
+function SimpleDialog(props: any) {
   const { onClose, open } = props;
+  const [isLoading, setIsLoading] = useState<boolean>(false); 
+  const {handleChangeData} = useStore();
+
 
   const handleClose = () => {
     onClose(); // Call the onClose function provided in the props
   };
 
-  const handleFileChange = (event) => {
+  const handleFileChange = (event: any) => {
     const selectedFile = event.target.files[0];
-    handleListItemClick('addCerts', selectedFile);
+    if(selectedFile) {
+        handleListItemClick('addCerts', selectedFile);
+
+    }
   };
   
-  const handleListItemClick = async (destination, selectedFile) => {
+  const handleListItemClick = async (
+    destination: string,
+    selectedFile: any
+  ) => {
     if (destination === 'addCerts') {
       if (selectedFile) {
         try {
           const formData = new FormData();
-          formData.append('UserID', GetCookie('stakeId'));
-          formData.append('fileCSV', selectedFile, selectedFile.name);
-          
-          const response = await fetch(API_CREATE_URL + '/Certificate/issuer', {
-            method: 'POST',
-            body: formData,
-            headers: {
-              'Accept': '*/*'
+          formData.append('certificate', selectedFile);
+          setIsLoading(true);
+          const res = await axiosInstance.post(
+            '/Certificate/create-from-excel',
+            formData,
+            {
+              headers: {
+                'Content-Type': 'multipart/form-data'
+              }
             }
-          });
-      
-          if (response.ok) {
-            enqueueSnackbar('File uploaded successfully!', { variant: 'success' });
+          );
+
+          setIsLoading(false);
+          if (res.status == HTTP_STATUS.OK) {
+            enqueueSnackbar('File uploaded successfully!', {
+              variant: 'success'
+            });
+            handleChangeData(); 
             handleClose();
           } else {
-            enqueueSnackbar('Error uploading file!', { variant: 'error'});
+            enqueueSnackbar('Error uploading file!', { variant: 'error' });
             handleClose();
           }
         } catch (error) {
-          enqueueSnackbar('Error uploading file!', { variant: 'error'});
+          setIsLoading(false);
+          enqueueSnackbar('Error uploading file!', { variant: 'error' });
           handleClose();
         }
       } else {
-        enqueueSnackbar('Error uploading file!', { variant: 'error'});
+        setIsLoading(false);
+        enqueueSnackbar('Error uploading file!', { variant: 'error' });
         handleClose();
       }
     }
   };
 
   return (
-    <Dialog open={open} onClose={handleClose}>
+    <>
+    {isLoading && <Loading />}
+     {!isLoading && <Dialog open={open} onClose={handleClose}>
       <DialogTitle>Add file CSV</DialogTitle>
       <List sx={{ pt: 0 }}>
         <ListItem
@@ -89,7 +109,8 @@ function SimpleDialog(props) {
           />
         </ListItem>
       </List>
-    </Dialog>
+    </Dialog>}
+    </>
   );
 }
 

@@ -52,7 +52,8 @@ const SidebarLayout: FC<SidebarLayoutProps> = ({ children }) => {
             pt: `${theme.header.height}`,
             [theme.breakpoints.up('lg')]: {
               ml: `${theme.sidebar.width}`
-            }
+            }, 
+            background: '#f2f5f9'
           }}
         >
           <Box display="block">{children}</Box>

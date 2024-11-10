@@ -15,6 +15,7 @@ import AdapterDateFns from '@mui/lab/AdapterDateFns';
 import LocalizationProvider from '@mui/lab/LocalizationProvider';
 import { MeshProvider } from '@meshsdk/react';
 import "../styles/globals.css";
+import { GlobalProvider } from '@/contexts/GlobalContext';
 
 const clientSideEmotionCache = createEmotionCache();
 
@@ -36,26 +37,28 @@ function TokyoApp(props: TokyoAppProps) {
   Router.events.on('routeChangeComplete', nProgress.done);
 
   return (
-    <CacheProvider value={emotionCache}>
-      <Head>
-        <title>Dashboard</title>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, shrink-to-fit=no"
-        />
-        <link rel="shortcut icon" href="/favicon/favicon.ico" />
-      </Head>
-      <SidebarProvider>
-        <ThemeProvider>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <CssBaseline />
-            <MeshProvider>
-              {getLayout(<Component {...pageProps} />)}
-            </MeshProvider>
-          </LocalizationProvider>
-        </ThemeProvider>
-      </SidebarProvider>
-    </CacheProvider>
+    <GlobalProvider>
+      <CacheProvider value={emotionCache}>
+        <Head>
+          <title>Dashboard</title>
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, shrink-to-fit=no"
+          />
+          <link rel="shortcut icon" href="/favicon/favicon.ico" />
+        </Head>
+        <SidebarProvider>
+          <ThemeProvider>
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <CssBaseline />
+              <MeshProvider>
+                {getLayout(<Component {...pageProps} />)}
+              </MeshProvider>
+            </LocalizationProvider>
+          </ThemeProvider>
+        </SidebarProvider>
+      </CacheProvider>
+    </GlobalProvider>
   );
 }
 
