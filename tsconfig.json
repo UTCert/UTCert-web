@@ -27,7 +27,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noFallthroughCasesInSwitch": true,
-    "incremental": true
+    "incremental": true,
+    "noImplicitAny": false,
   },
   "exclude": ["node_modules"],
   "include": ["src", "next-env.d.ts", "**/*.ts", "**/*.tsx", "pages/homepage"]
