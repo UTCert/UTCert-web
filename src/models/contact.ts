@@ -1,13 +1,16 @@
-export type ContactStatus = 1 | 2;
-
 export interface Contact {
-  contactID: string;
-  contactCode: number;
+  id: string;
+  code: number;
   contactName: string;
   createdDate: string;
   contactStatus: ContactStatus;
-  issuedID: string;
-  receivedID: string;
+  issuedId: string;
+  receiverId: string;
+  issuer: any, 
+  receiver: any, 
 }
 
-export type ContactName = string;
+export enum ContactStatus {
+  Pending = 1,
+  Accepted = 2,
+}

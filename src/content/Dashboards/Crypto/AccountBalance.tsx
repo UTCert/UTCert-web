@@ -16,10 +16,9 @@ import {
 import Text from 'src/components/Text';
 import { Chart } from 'src/components/Chart';
 import type { ApexOptions } from 'apexcharts';
-import GetCookie from '@/hooks/getCookie';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
-import { API_URL } from '@/constants/appConstants';
+import axiosInstance from '@/lib/axiosIntance';
+import { enqueueSnackbar } from 'notistack';
 
 const ListItemAvatarWrapper = styled(ListItemAvatar)(
   ({ theme }) => `
@@ -48,32 +47,26 @@ const ListItemAvatarWrapper = styled(ListItemAvatar)(
 
 function AccountBalance() {
   const [isLoading, setIsLoading] = useState(true);
-  const [data, setData] = useState(null);
+  const [data, setData] = useState<any>(null);
 
   useEffect(() => {
-    axios.post(API_URL + '/Home',
-      GetCookie("stakeId"),
-      {
-        headers: {
-          'accept': '*/*',
-          'Content-Type': 'application/json'
-        }
-      }
-    ).then(response => {
-      setData(response.data);
-      setIsLoading(false); // set isLoading to false when the response is received
-    }).catch(error => {
-      console.log(error);
-      setIsLoading(false); // set isLoading to false when there's an error
-    });
+    fetchData();
   }, []);
-  if (isLoading) {
-    return (
-      <>
-        <Skeleton animation="wave" variant="rectangular" width={1100} height={300} />
-      </>
-    );
+
+  const fetchData = async () => {
+    try {
+      const res = await axiosInstance.get('/Home'); 
+      setIsLoading(false);
+      if(res.data.success) {
+        setData(res.data.data); 
+      }
+    } catch (error) {
+      setIsLoading(false);
+      enqueueSnackbar('Something wrong!', { variant: 'error' });
+    }
   }
+  
+  
   const theme = useTheme();
 
   const chartContactOptions: ApexOptions = {
@@ -211,14 +204,24 @@ function AccountBalance() {
     }
   };
 
-  const contactSeries = [data.pending, data.connected];
-  const certificateSeries = [(data.draft + data.signed + data.sent + data.banned), data.received];
+  const contactSeries = data ? [data.pending, data.accepted] : [];
+  const certificateSeries = data ? [(data.draft + data.signed + data.sent + data.banned), data.received] : [];
+
+  if (isLoading || !data) {
+    return (
+      <>
+        <Skeleton animation="wave" variant="rectangular" width={1100} height={300} />
+      </>
+    );
+  }
 
   return (
     <Card>
       <Grid spacing={0} container>
         <Grid item xs={12} md={6}>
-          <Box p={4}>
+          <Box
+            p={2}
+          >
             <Typography variant="h2">Contacts</Typography>
             <Box
               component="span"
@@ -232,7 +235,7 @@ function AccountBalance() {
               <Grid container spacing={0}>
                 <Grid
                   xs={12}
-                  sm={5}
+                  sm={6}
                   item
                   display="flex"
                   justifyContent="center"
@@ -245,7 +248,7 @@ function AccountBalance() {
                     type="donut"
                   />
                 </Grid>
-                <Grid xs={12} sm={7} item display="flex" alignItems="center">
+                <Grid xs={12} sm={6} item display="flex" alignItems="center">
                   <List
                     disablePadding
                     sx={{
@@ -262,7 +265,7 @@ function AccountBalance() {
                       <ListItemText
                         primary="Pending"
                         primaryTypographyProps={{ variant: 'h5', noWrap: true }}
-                        secondary="Pending percents"
+                        secondary="Pending"
                         secondaryTypographyProps={{
                           variant: 'subtitle2',
                           noWrap: true
@@ -272,7 +275,16 @@ function AccountBalance() {
                         <Typography align="right" variant="h4" noWrap>
                           {data.pending}
                         </Typography>
-                        <Text color="error">{data.total != 0 ? ((data.pending / data.total) * 100).toFixed(2) : 0}%</Text>
+                        <Text color="error">
+                          {data.pending + data.accepted > 0
+                            ? (
+                                (data.pending /
+                                  (data.pending + data.accepted)) *
+                                100
+                              ).toFixed(2)
+                            : 0}
+                          %
+                        </Text>
                       </Box>
                     </ListItem>
                     <ListItem disableGutters>
@@ -293,9 +305,18 @@ function AccountBalance() {
                       />
                       <Box>
                         <Typography align="right" variant="h4" noWrap>
-                          {data.connected}
+                          {data.accepted}
                         </Typography>
-                        <Text color="success">{ data.total != 0 ? ((data.connected / data.total) * 100).toFixed(2) : 0}%</Text>
+                        <Text color="success">
+                          {data.pending + data.accepted > 0
+                            ? (
+                                (data.accepted /
+                                  (data.pending + data.accepted)) *
+                                100
+                              ).toFixed(2)
+                            : 0}
+                          %
+                        </Text>
                       </Box>
                     </ListItem>
                   </List>
@@ -305,7 +326,9 @@ function AccountBalance() {
           </Box>
         </Grid>
         <Grid item xs={12} md={6}>
-          <Box p={4}>
+          <Box
+            p={2}
+          >
             <Typography variant="h2">Credentials</Typography>
             <Box
               component="span"
@@ -319,7 +342,7 @@ function AccountBalance() {
               <Grid container spacing={0}>
                 <Grid
                   xs={12}
-                  sm={5}
+                  sm={6}
                   item
                   display="flex"
                   justifyContent="center"
@@ -332,7 +355,7 @@ function AccountBalance() {
                     type="donut"
                   />
                 </Grid>
-                <Grid xs={12} sm={7} item display="flex" alignItems="center">
+                <Grid xs={12} sm={6} item display="flex" alignItems="center">
                   <List
                     disablePadding
                     sx={{
@@ -357,9 +380,30 @@ function AccountBalance() {
                       />
                       <Box>
                         <Typography align="right" variant="h4" noWrap>
-                          {(data.draft + data.signed + data.sent + data.banned)}
+                          {data.draft + data.signed + data.sent + data.banned}
                         </Typography>
-                        <Text color="error">{ data.total != 0 ? ((data.draft + data.signed + data.sent + data.banned) / (data.draft + data.signed + data.sent + data.banned + data.received) * 100).toFixed(2) : 0}%</Text>
+                        <Text color="error">
+                          {data.draft +
+                            data.signed +
+                            data.sent +
+                            data.banned +
+                            data.received >
+                          0
+                            ? (
+                                ((data.draft +
+                                  data.signed +
+                                  data.sent +
+                                  data.banned) /
+                                  (data.draft +
+                                    data.signed +
+                                    data.sent +
+                                    data.banned +
+                                    data.received)) *
+                                100
+                              ).toFixed(2)
+                            : 0}
+                          %
+                        </Text>
                       </Box>
                     </ListItem>
                     <ListItem disableGutters>
@@ -382,7 +426,25 @@ function AccountBalance() {
                         <Typography align="right" variant="h4" noWrap>
                           {data.received}
                         </Typography>
-                        <Text color="success">{data.total != 0 ? (data.received / (data.draft + data.signed + data.sent + data.banned + data.received) * 100).toFixed(2) : 0}%</Text>
+                        <Text color="success">
+                          {data.draft +
+                            data.signed +
+                            data.sent +
+                            data.banned +
+                            data.received >
+                          0
+                            ? (
+                                (data.received /
+                                  (data.draft +
+                                    data.signed +
+                                    data.sent +
+                                    data.banned +
+                                    data.received)) *
+                                100
+                              ).toFixed(2)
+                            : 0}
+                          %
+                        </Text>
                       </Box>
                     </ListItem>
                   </List>

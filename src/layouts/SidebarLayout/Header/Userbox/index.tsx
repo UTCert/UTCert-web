@@ -25,11 +25,8 @@ import ExpandMoreTwoToneIcon from '@mui/icons-material/ExpandMoreTwoTone';
 import AccountBoxTwoToneIcon from '@mui/icons-material/AccountBoxTwoTone';
 import LockOpenTwoToneIcon from '@mui/icons-material/LockOpenTwoTone';
 import AccountTreeTwoToneIcon from '@mui/icons-material/AccountTreeTwoTone';
-import axios from 'axios';
-import GetCookie from '@/hooks/getCookie';
 import VerifiedIcon from '@mui/icons-material/Verified';
-import RemoveCookie from '@/hooks/RemoveCookie';
-import { API_URL } from '@/constants/appConstants';
+import { useStore } from '@/contexts/GlobalContext';
 
 const UserBoxButton = styled(Button)(
   ({ theme }) => `
@@ -67,29 +64,22 @@ const UserBoxDescription = styled(Typography)(
 );
 
 function HeaderUserbox() {
-  const theme = useTheme();
   const ref = useRef<any>(null);
   const [isOpen, setOpen] = useState<boolean>(false);
-  const [user, setUser] = useState(null);
+  const { user,  authToken, loading, handleClearSession} = useStore();
+  const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    axios.post(API_URL + '/Home',
-      GetCookie("stakeId"),
-      {
-        headers: {
-          'accept': '*/*',
-          'Content-Type': 'application/json'
-        }
-      }
-    ).then(response => {
-      setUser(response.data);
-      setIsLoading(false); // set isLoading to false when the response is received
-    }).catch(() => {
-      setIsLoading(false); // set isLoading to false when there's an error
-    });
-  }, []);
+    setIsLoading(true);
 
+    if(loading) {
+      return ;
+    }
+    if (user) {
+      setIsLoading(false); 
+    } 
+  }, [authToken, user]);
   const handleOpen = (): void => {
     setOpen(true);
   };
@@ -103,23 +93,22 @@ function HeaderUserbox() {
   }
 
   const logout = () => {
-    RemoveCookie("stakeId");
-    window.location.href = '/';
+    handleClearSession();
   }
 
   return (
     <>
       <UserBoxButton color="secondary" ref={ref} onClick={handleOpen}>
-        {isLoading ?
+        {(isLoading  || !authToken )?
           <>
             <Skeleton animation="wave" variant="circular" width={50} height={50} />
             <Skeleton animation="wave" variant="rectangular" width={200} height={50} />
           </>
-          : <Avatar variant="rounded" alt={user.username} src={user.logo} />}
+          : <Avatar variant="rounded" alt={user.name} src={user.avatarUri} />}
         <Hidden mdDown>
-          {isLoading ? <> </> :
+          {(isLoading || !authToken) ? <> </> :
             <UserBoxText>
-              <UserBoxLabel variant="body1" style={{ display: 'inline' }}>{truncateString(user.username, 25)}</UserBoxLabel>
+              <UserBoxLabel variant="body1" style={{ display: 'inline' }}>{truncateString(user.name, 25)}</UserBoxLabel>
               <UserBoxDescription variant="body2" style={{ display: 'inline' }}>
                 {user.isVerified === 1 ? (
                   <Tooltip title="Account is Verified" arrow>
@@ -160,12 +149,12 @@ function HeaderUserbox() {
         }}
       >
         <MenuUserBox sx={{ minWidth: 210 }} display="flex">
-          {isLoading ? <Skeleton animation="wave" variant="circular" width={50} height={50} /> :
-            <Avatar variant="rounded" alt={user.username} src={user.logo} />}
+          {(isLoading || !authToken) ? <Skeleton animation="wave" variant="circular" width={50} height={50} /> :
+            <Avatar variant="rounded" alt={user.name} src={user.avatarUri} />}
           <UserBoxText>
-            {isLoading ? <Skeleton animation="wave" variant='rectangular' width={200} height={50} /> :
+            {(isLoading || !authToken) ? <Skeleton animation="wave" variant='rectangular' width={200} height={50} /> :
               <>
-                <UserBoxLabel variant="body1" style={{ display: 'inline' }}>{user.username}</UserBoxLabel>
+                <UserBoxLabel variant="body1" style={{ display: 'inline' }}>{user.name}</UserBoxLabel>
                 <UserBoxDescription variant="body2" style={{ display: 'inline' }}>
                   {user.isVerified === 1 ? (
                     <Tooltip title="Account is Verified" arrow>

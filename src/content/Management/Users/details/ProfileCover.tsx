@@ -90,7 +90,7 @@ const ProfileCover = ({ user }) => {
   return (
     <>
       <CardCover>
-        <CardMedia image={user.logo} />
+        <CardMedia image={user.avatarUri} />
         <CardCoverAction>
           <Input accept="image/*" id="change-cover" multiple type="file" />
           <label htmlFor="change-cover">
@@ -105,7 +105,7 @@ const ProfileCover = ({ user }) => {
         </CardCoverAction>
       </CardCover>
       <AvatarWrapper>
-        <Avatar variant="rounded" alt={user.username} src={user.logo} />
+        <Avatar variant="rounded" alt={user.name} src={user.avatarUri} />
         <ButtonUploadWrapper>
           <Input
             accept="image/*"
@@ -122,7 +122,7 @@ const ProfileCover = ({ user }) => {
       </AvatarWrapper>
       <Box py={2} pl={2} mb={3}>
         <Typography gutterBottom variant="h4">
-          {user.username}
+          {user.name}
           <label htmlFor="icon-button-file">
             <IconButton component="span" color="primary">
               <EditIcon />

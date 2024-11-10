@@ -1,30 +1,59 @@
-export type CertificateStatus = 1 | 2 | 3 | 4 | 0;
-export type ContactStatus = '1' | '2';
+import { ContactStatus } from "./contact";
+import { User } from "./user";
 
 export interface Certificate {
-  certificateID: string;
+  id: string;
+  code: number;
+  name: string; 
+  issuerName: string;
+  receiverName: string; 
+
   imageLink: string;
-  transactionLink: string;
-  receivedIdentityNumber: string;
-  receivedDoB: string;
-  yearOfGraduation: number;
+  receiverIdentityNumber: string;
+  receiverDoB: string;
+  graduationYear: number;
   classification: string;
   modeOfStudy: string;
   ipfsLink: string;
-  sentDate: string;
-  receivedAddressWallet: string;
-  certificateCode: number;
-  certificateType: string;
-  certificateName: string;
-  receivedName: string;
+  receiverAddressWallet: string;
   signedDate: string;
+  receivedDate: string; 
   contactStatus: ContactStatus;
-  certificateStatus: CertificateStatus;
-  organizationName: string;
-  receivedDate: string;
+
+  status: CertificateStatus;
+  signingType: SigningType
+  sentDate: string;
+
+  // multiple signature
+  signHash: string; 
+  mulSignJson: string; 
+
+  // attachment
+  attachmentJson: string; 
+  attachmentIpfs: string; 
+  
+  // mapping to user
+  issuer: User; 
+  receiver: User;
+
 }
 
-export type CertificateName = string;
-export type ReceivedName = string;
-export type OrganizationName = string;
+export enum CertificateStatus {
+  Draft = 1,
+  Signed = 2,
+  Sent = 3,
+  Banned = 4
+}
 
+export enum SigningType {
+  SingleSigning = 1,
+  MultipleSigning = 2
+}
+
+export class CertificateMulSign
+{
+    issuerName: string; 
+    issuerAddress ?: string; 
+    signedDate: string; 
+    isSigned: boolean; 
+}

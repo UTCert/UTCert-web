@@ -1,9 +1,21 @@
 import Head from 'next/head';
 import SidebarLayout from '@/layouts/SidebarLayout';
-import { Grid, Container } from '@mui/material';
+import { Grid, Container, IconButton } from '@mui/material';
 import Footer from '@/components/Footer';
 
 import ReceivedCertsOrders from '@/content/Management/Transactions/ReceivedCertsOrders';
+import { SnackbarProvider, useSnackbar } from 'notistack';
+import CloseIcon from '@mui/icons-material/Close';
+
+function SnackbarCloseButton({ snackbarKey }) {
+  const { closeSnackbar } = useSnackbar();
+
+  return (
+    <IconButton onClick={() => closeSnackbar(snackbarKey)} size="small" sx={{ color: 'white' }}>
+      <CloseIcon/>
+    </IconButton>
+  );
+}
 
 function ApplicationsTransactions() {
   return (
@@ -24,6 +36,9 @@ function ApplicationsTransactions() {
           </Grid>
         </Grid>
       </Container>
+      <SnackbarProvider
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        action={snackbarKey => <SnackbarCloseButton snackbarKey={snackbarKey} />} />
       <Footer />
     </>
   );

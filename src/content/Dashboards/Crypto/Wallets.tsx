@@ -1,5 +1,4 @@
-import { API_URL } from '@/constants/appConstants';
-import GetCookie from '@/hooks/getCookie';
+import axiosInstance from '@/lib/axiosIntance';
 import {
   Avatar,
   Box,
@@ -11,7 +10,7 @@ import {
   alpha,
   styled
 } from '@mui/material';
-import axios from 'axios';
+import { enqueueSnackbar } from 'notistack';
 import { useEffect, useState } from 'react';
 
 const AvatarWrapper = styled(Avatar)(
@@ -77,28 +76,26 @@ const AvatarWrapper = styled(Avatar)(
 
 function Wallets() {
   const [isLoading, setIsLoading] = useState(true);
-  const [data, setData] = useState(null);
+  const [data, setData] = useState<any>(null);
 
   useEffect(() => {
-    axios
-      .post(API_URL + '/Home', GetCookie('stakeId'), {
-        headers: {
-          accept: '*/*',
-          'Content-Type': 'application/json'
-        }
-      })
-      .then((response) => {
-        setData(response.data);
-        console.log(response.data);
-        setIsLoading(false); // set isLoading to false when the response is received
-      })
-      .catch((error) => {
-        console.log(error);
-        setIsLoading(false); // set isLoading to false when there's an error
-      });
+    fetchData();
   }, []);
 
-  if (isLoading) {
+  const fetchData = async () => {
+    try {
+      const res = await axiosInstance.get('/Home'); 
+      setIsLoading(false);
+      if(res.data.success) {
+        setData(res.data.data); 
+      }
+    } catch (error) {
+      setIsLoading(false);
+      enqueueSnackbar('Something wrong!', { variant: 'error' });
+    }
+  }
+
+  if (isLoading || !data) {
     return (
       <>
         <Skeleton
@@ -291,7 +288,6 @@ function Wallets() {
           </Grid>
         </Grid>
       </div>
-      c
     </>
   );
 }
