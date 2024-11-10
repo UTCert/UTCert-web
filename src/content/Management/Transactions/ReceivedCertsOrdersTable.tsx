@@ -1,10 +1,4 @@
-import {
-  Certificate,
-  CertificateName,
-  CertificateStatus,
-  OrganizationName
-} from '@/models/certificate';
-import VisibilityIcon from '@mui/icons-material/Visibility';
+import { Certificate } from '@/models/certificate';
 import styles from '../../../../styles/IssuedCerts.module.css';
 
 import {
@@ -12,13 +6,13 @@ import {
   Card,
   CardHeader,
   Checkbox,
-  Dialog,
-  DialogContent,
+  CircularProgress,
   Divider,
   FormControl,
   IconButton,
   Input,
   InputLabel,
+  Fade,
   Table,
   TableBody,
   TableCell,
@@ -28,261 +22,179 @@ import {
   TableRow,
   Tooltip,
   Typography,
-  useTheme
+  useTheme,
+  Button
 } from '@mui/material';
-import { enqueueSnackbar } from 'notistack';
-import PropTypes from 'prop-types';
-import { ChangeEvent, FC, useEffect, useState } from 'react';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import AttachFileIcon from '@mui/icons-material/AttachFile'; 
+import { ChangeEvent, useEffect, useState } from 'react';
 import { FaSpinner } from 'react-icons/fa';
 import { MdArrowDownward, MdArrowUpward } from 'react-icons/md';
 import BulkActions from './BulkActions';
-
-interface ReceivedCertsOrdersTableProps {
-  className?: string;
-  certificates: Certificate[];
-  fetchData: () => void;
-}
+import axiosInstance from '@/lib/axiosIntance';
+import { HTTP_STATUS } from '@/enum/HTTP_SATUS';
+import CertDetail from './CertDetail';
+import { enqueueSnackbar } from 'notistack';
 
 interface Filters {
-  status?: CertificateStatus;
-  certificateName?: CertificateName;
-  organizationName?: OrganizationName;
+  status?: string;
+  certificateName?: string;
+  organizationName?: string;
+  sorting: string;
+  pageNumber: number;
+  pageSize: number;
 }
 
 const columns = [
-  { key: 'certificateCode', name: 'Code' },
-  { key: 'certificateName', name: 'Certificate Name' },
-  { key: 'yearOfGraduation', name: 'Graduation Year' },
-  { key: 'organizationName', name: 'Organization Name' },
-  { key: 'receivedDate', name: 'Received Date' }
+    { key: 'code', name: 'Code', sort: '', isSort: true, align: 'center'},
+    { key: 'name', name: 'Certificate Name', sort: '', isSort: true, align: 'left'},
+    { key: 'yearOfGraduation', name: 'Graduation Year', sort: '', isSort: true, align: 'center' },
+    { key: 'issuerName', name: 'Organization Name', sort: '', isSort: true, align: 'left' },
+    { key: 'receivedDate', name: 'Received Date', sort: '', isSort: true , align: 'center'}
 ];
 
-// modal view cert
-function SimpleDialog(props) {
-  const { open, onClose, selectedCertifiate } = props;
-  if (selectedCertifiate == undefined) {
-    return <></>;
-  }
-
-  return (
-    <Dialog maxWidth="lg" open={open} onClose={onClose}>
-      <DialogContent
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '6fr 4fr',
-          alignItems: 'center'
-        }}
-      >
-        <div>
-          <img
-            src={selectedCertifiate.imageLink}
-            alt="Image"
-            style={{ maxWidth: '100%', maxHeight: '100%' }}
-          />
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'auto 2fr',
-            marginLeft: '30px',
-            fontSize: '15px',
-            gap: '5px',
-            backgroundColor: 'Background'
-          }}
-        >
-          <p
-            style={{
-              fontWeight: 'bold',
-              borderBottom: '1px solid #000',
-              paddingBottom: '5px'
-            }}
-          >
-            CERTIFICATE CODE:
-          </p>
-          <p style={{ borderBottom: '1px solid #000' }}>
-            {selectedCertifiate.certificateCode}
-          </p>
-          <p style={{ fontWeight: 'bold', marginTop: '0px' }}>
-            RECEIVED IDENTITY:
-          </p>
-          <p style={{ marginTop: '0px' }}>
-            {selectedCertifiate.receivedIdentityNumber}
-          </p>
-          <p style={{ fontWeight: 'bold' }}>RECEIVED NAME:</p>
-          <p>{selectedCertifiate.receivedName}</p>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// const getStatusLabel = (certificateStatus: CertificateStatus): JSX.Element => {
-//   const map = {
-//     '0': {
-//       text: 'Draft',
-//       color: 'secondary'
-//     },
-//     '1': {
-//       text: 'Signed',
-//       color: 'primary'
-//     },
-//     '2': {
-//       text: 'Sent',
-//       color: 'success'
-//     }
-//   };
-//   const { text, color }: any = map[certificateStatus];
-//   return <Label color={color}>{text}</Label>;
-// };
-
-const applyFilters = (
-  certificates: Certificate[],
-  filters: Filters
-): Certificate[] => {
-  return certificates.filter((certificate) => {
-    let matches = true;
-
-    if (filters.status && certificate.certificateStatus !== filters.status) {
-      matches = false;
-    }
-
-    if (
-      filters.certificateName &&
-      !certificate.certificateName
-        .toLowerCase()
-        .includes(filters.certificateName.toLowerCase())
-    ) {
-      matches = false;
-    }
-
-    if (
-      filters.organizationName &&
-      !certificate.organizationName
-        .toLowerCase()
-        .includes(filters.organizationName.toLowerCase())
-    ) {
-      matches = false;
-    }
-
-    return matches;
-  });
-};
-
-const applyPagination = (
-  certificates: Certificate[],
-  page: number,
-  limit: number
-): Certificate[] => {
-  return certificates.slice(page * limit, page * limit + limit);
-};
-
-const ReceivedCertsOrdersTable: FC<ReceivedCertsOrdersTableProps> = ({
-  certificates,
-  fetchData
-}) => {
-  const [open, setOpen] = useState(false);
-  const [selectedCertifiates, setSelectedCertificates] = useState<string[]>([]);
+function ReceivedCertsOrdersTable() {
+  const [isTableLoading, setTableLoading] = useState<boolean>(true);
+  const [selectedCertifiates, setSelectedCertificates] = useState<
+    Certificate[]
+  >([]);
   const [selectedCertifiate, setSelectedCertificate] = useState<Certificate>();
-  const [selectedCertifiatesInformation, setSelectedCertificatesInformation] =
-    useState<Certificate[]>([]);
-
-  const selectedBulkActions = selectedCertifiates.length > 0;
-  const [page, setPage] = useState<number>(0);
-  const [limit, setLimit] = useState<number>(5);
-  const [sortedCertificateOrders, setSortedCertificateOrders] = useState([]);
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [sortColumn, setSortColumn] = useState(null);
-  const [isSorted, setIsSorted] = useState(false);
+  const [data, setData] = useState<Certificate[]>([]);
   const [filters, setFilters] = useState<Filters>({
     certificateName: null,
-    organizationName: null
+    organizationName: null,
+    sorting: '',
+    pageNumber: 0,
+    pageSize: 5
   });
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [filteredData, setFilteredData] = useState([]);
-  const [paginatedSortedData, setPaginatedSortedData] = useState([]);
+  const [isResetFilter, setResetFilter] = useState<boolean>(false);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const theme = useTheme();
 
   useEffect(() => {
-    const filteredData = applyFilters(certificates, filters);
-    const paginatedData = applyPagination(filteredData, page, limit);
+    let timeout = null;
+    if (!isResetFilter) {
+      timeout = setTimeout(() => {
+        fetchData();
+      }, 500);
+    } else {
+      fetchData();
+      setResetFilter(false);
+    }
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [filters]);
 
-    setFilteredData(filteredData);
-    setPaginatedSortedData(paginatedData);
-  }, [certificates, filters, page, limit]);
+  // #region function
+  // handle select checkbox
+  const handleSelectOne = (cert: Certificate): void => {
+    setSelectedCertificates((prevList: Certificate[]) => {
+      if (prevList.some((x) => x.id == cert.id)) {
+        return prevList.filter((x) => x.id != cert.id);
+      } else {
+        return [...prevList, cert];
+      }
+    });
+  };
+  const handleSelectAll = (event: ChangeEvent<HTMLInputElement>): void => {
+    event.target.checked ? setSelectedCertificates(data) : [];
+  };
 
-  const handleSort = (column) => {
-    let newSortDirection;
+  // view cert detail
+  const handleOpenCert = (certificate: Certificate) => {
+    setSelectedCertificate(certificate);
+  };
+  const handleCloseCert = () => {
+    setSelectedCertificate(null);
+  };
 
-    if (sortColumn === column && sortDirection === 'desc' && isSorted) {
-      setSortedCertificateOrders(certificates);
-      setSortDirection(null);
-      setSortColumn(null);
-      setIsSorted(false);
+  // download attachment
+  const handleDownloadFile = async (certificate: Certificate) => {
+    const ipfsGatewayUrl = `https://ipfs.io/ipfs/${certificate.attachmentIpfs}`;
+
+    try {
+      enqueueSnackbar('Downloading, please wait...', {variant: 'info'});
+      const response = await fetch(ipfsGatewayUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch the file from IPFS');
+      }
+
+      const blob = await response.blob();
+      const fileType = blob.type || 'application/octet-stream';
+      const fileName = `downloaded-file.${fileType.split('/')[1] || 'bin'}`; 
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url); // Clean up the temporary URL
+    } catch (error) {
+      console.error('Download error:', error);
+      enqueueSnackbar(
+        'Failed to download file. Please check the IPFS hash or try again.',
+        { variant: 'error' }
+      );
+    }
+  };
+  // #endregion
+
+  // #region filter
+  const handleSort = async (column: {
+    key: string;
+    name: string;
+    sort?: string;
+    isSort?: boolean;
+  }) => {
+    if (!column.isSort) {
       return;
     }
 
-    if (sortColumn === column && sortDirection === 'asc') {
-      newSortDirection = 'desc';
-    } else if (sortColumn === column && sortDirection === 'desc') {
-      newSortDirection = null;
+    if (!column.sort) {
+      column.sort = 'asc';
+    } else if (column.sort == 'desc') {
+      column.sort = 'asc';
     } else {
-      newSortDirection = 'asc';
+      column.sort = 'desc';
     }
-    const sortedData = [...paginatedCertificateOrders].sort((a, b) => {
-      if (column === 'receivedDate') {
-        const dateA = new Date(a[column]);
-        const dateB = new Date(b[column]);
-        if (dateA < dateB) {
-          return newSortDirection === 'asc' ? -1 : 1;
-        }
-        if (dateA > dateB) {
-          return newSortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
-      } else if (column === 'yearOfGraduation') {
-        return newSortDirection === 'asc'
-          ? a[column] - b[column]
-          : b[column] - a[column];
+
+    columns.forEach(x => {
+      if(x.key == column.key) {
+        x.sort = column.sort; 
       } else {
-        if (a[column] < b[column]) {
-          return newSortDirection === 'asc' ? -1 : 1;
-        }
-        if (a[column] > b[column]) {
-          return newSortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
+        x.sort = ''; 
       }
     });
 
-    const filteredData = applyFilters(sortedData, filters);
-    const paginatedData = applyPagination(filteredData, page, limit);
-
-    setFilteredData(filteredData);
-    setPaginatedSortedData(paginatedData);
-
-    setSortedCertificateOrders(paginatedData);
-    setSortDirection(newSortDirection);
-    setSortColumn(column);
-    setIsSorted(true);
+    let sorting = `${column.key} ${column.sort}`;
+    setFilters({
+      ...filters,
+      sorting
+    });
   };
 
-  const renderSortIcon = (columnKey) => {
-    if (sortColumn === columnKey) {
-      return (
-        <>{sortDirection === 'asc' ? <MdArrowUpward /> : <MdArrowDownward />}</>
-      );
-    }
-    return null;
+  const handlePageNumberChange = (_: any, newPage: number) => {
+    setFilters({
+      ...filters,
+      pageNumber: newPage
+    });
+  };
+
+  const handlePageSizeChange = (event: any) => {
+    setFilters({
+      ...filters,
+      pageSize: parseInt(event.target.value)
+    });
   };
 
   const handleFilterChange = (filterName: string, value: any) => {
     if (filterName === 'certificateStatus') {
-      let newValue = null;
-      if (value !== 'all') {
-        newValue = value;
-      }
       setFilters((prevFilters) => ({
         ...prevFilters,
-        certificateStatus: newValue
+        certificateStatus: value !== 'all' ? value : null
       }));
     } else {
       setFilters((prevFilters) => ({
@@ -291,114 +203,77 @@ const ReceivedCertsOrdersTable: FC<ReceivedCertsOrdersTableProps> = ({
       }));
     }
   };
+  // #endregion
 
-  const handleReload = async () => {
+  // #region API
+  const resetData = () => {
+    setResetFilter(true);
+    setFilters({
+      certificateName: null,
+      organizationName: null,
+      sorting: '',
+      pageNumber: 0,
+      pageSize: 5
+    });
+    setSelectedCertificates([]);
+  };
+
+  const fetchData = async () => {
     try {
-      setIsLoading(true);
-      await fetchData();
-      setIsLoading(false);
-      enqueueSnackbar('Load Successful!', { variant: 'success' });
+      let input = { ...filters };
+      input.pageNumber = filters.pageNumber + 1;
+      setTableLoading(true);
+
+      const response = await axiosInstance.post(
+        '/Certificate/get-certificate-received',
+        input
+      );
+      setTableLoading(false);
+      if (response.status == HTTP_STATUS.OK) {
+        const { data } = response.data;
+
+        const lstCert = (data.items as Certificate[])?.map((x) => ({
+          ...x,
+          attachmentIpfs: x.attachmentJson
+            ? JSON.parse(x.attachmentJson).ipfsLink
+            : ''
+        }));
+
+        setData(lstCert);
+        setTotalCount(data.totalCount);
+      } else {
+        setData([]);
+      }
     } catch (error) {
-      setIsLoading(false);
-      enqueueSnackbar('Load Error!', { variant: 'error' });
+      setTableLoading(false);
+      console.error(error);
     }
   };
-
-  const handleSelectAllCertificateOrders = (
-    event: ChangeEvent<HTMLInputElement>
-  ): void => {
-    setSelectedCertificates(
-      event.target.checked
-        ? certificates.map((certificate) => certificate.certificateID)
-        : []
-    );
-    setSelectedCertificatesInformation(
-      event.target.checked ? certificates : []
-    );
-  };
-
-  const handleSelectOneCertificateOrder = (
-    _event: ChangeEvent<HTMLInputElement>,
-    certificateId: string,
-    certificate: Certificate
-  ): void => {
-    if (!selectedCertifiates.includes(certificateId)) {
-      setSelectedCertificates((prevSelected) => [
-        ...prevSelected,
-        certificateId
-      ]);
-      setSelectedCertificatesInformation((prevSelectedInformation) => [
-        ...prevSelectedInformation,
-        certificate
-      ]);
-    } else {
-      setSelectedCertificates((prevSelected) =>
-        prevSelected.filter((id) => id !== certificateId)
-      );
-
-      setSelectedCertificatesInformation((prevSelected) =>
-        prevSelected.filter((cert) => cert.certificateID !== certificateId)
-      );
-    }
-  };
-
-  const handlePageChange = (_event: any, newPage: number): void => {
-    setIsSorted(false);
-    setPage(newPage);
-  };
-
-  const handleLimitChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    setLimit(parseInt(event.target.value));
-  };
-
-  const filteredCertificateOrders = applyFilters(certificates, filters);
-  const paginatedCertificateOrders = applyPagination(
-    filteredCertificateOrders,
-    page,
-    limit
-  );
-  const selectedSomeCertificateOrders =
-    selectedCertifiates.length > 0 &&
-    selectedCertifiates.length < certificates.length;
-  const selectedAllCertificateOrders =
-    selectedCertifiates.length === certificates.length;
-  const theme = useTheme();
-
-  const handleClickOpen = (certificate) => {
-    setSelectedCertificate(certificate);
-    setOpen(true);
-  };
-
-  const handleClose = () => {
-    setOpen(false);
-  };
-
+  // #endregion
   return (
     <Card>
-      {selectedBulkActions && (
+      {selectedCertifiates.length > 0 ? (
         <Box flex={1} p={2}>
-          <BulkActions certificates={selectedCertifiatesInformation} />
+          <BulkActions
+            certificates={selectedCertifiates}
+            loadData={resetData}
+          />
         </Box>
-      )}
-      {!selectedBulkActions && (
+      ) : (
         <CardHeader
           action={
-            <Box width={400}>
+            <Box width={600}>
               <div className={styles.box_container}>
-                <div
-                  className={`${styles.box_icon} ${
-                    isLoading ? styles.rotate : ''
-                  }`}
-                >
-                  <FaSpinner
-                    size={22}
-                    className={`${styles.spinner} ${
-                      isLoading ? styles.rotate : ''
-                    }`}
-                    onClick={handleReload}
-                    style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }} // Change cursor style when isLoading is true
-                  />
-                </div>
+                <Tooltip title={'Reset'} arrow>
+                  <Button onClick={resetData}>
+                    <FaSpinner
+                      size={22}
+                      style={{
+                        cursor: isTableLoading ? 'not-allowed' : 'pointer'
+                      }}
+                    />
+                  </Button>
+                </Tooltip>
                 <div className={styles.box_filter}>
                   <FormControl fullWidth variant="outlined">
                     <InputLabel>Certificate Name</InputLabel>
@@ -427,167 +302,79 @@ const ReceivedCertsOrdersTable: FC<ReceivedCertsOrdersTableProps> = ({
       )}
       <Divider />
       <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell padding="checkbox">
-                <Checkbox
-                  color="primary"
-                  checked={selectedAllCertificateOrders}
-                  indeterminate={selectedSomeCertificateOrders}
-                  onChange={handleSelectAllCertificateOrders}
-                />
-              </TableCell>
-              {columns.map((column) => (
-                <TableCell
-                  key={column.key}
-                  onClick={() => handleSort(column.key)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {column.name}
-                  {renderSortIcon(column.key)}
-                </TableCell>
-              ))}
-              <TableCell></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {isSorted
-              ? paginatedSortedData.map((certificate) => {
-                  const isCertificateOrderSelected =
-                    selectedCertifiates.includes(certificate.certificateID);
-                  return (
-                    <TableRow
-                      hover
-                      key={certificate.certificateID}
-                      selected={isCertificateOrderSelected}
+        {isTableLoading ? (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              height: '400px',
+              flexDirection: 'column'
+            }}
+          >
+            <CircularProgress
+              size={60}
+              thickness={5}
+              style={{ color: '#3f51b5' }}
+            />
+            <Typography variant="h6" style={{ marginTop: '16px' }}>
+              Loading data, please wait...
+            </Typography>
+          </div>
+        ) : (
+          <Fade in={!isTableLoading} timeout={500}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      color="primary"
+                      checked={selectedCertifiates.length == data.length}
+                      onChange={handleSelectAll}
+                    />
+                  </TableCell>
+                  {columns.map((column) => (
+                    <TableCell
+                      key={column.key}
+                      onClick={() => handleSort(column)}
+                      style={{ cursor: 'pointer' }}
+                      align={
+                        column.align as
+                          | 'left'
+                          | 'center'
+                          | 'right'
+                          | 'justify'
+                          | 'inherit'
+                      }
                     >
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          color="primary"
-                          checked={isCertificateOrderSelected}
-                          onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                            handleSelectOneCertificateOrder(
-                              event,
-                              certificate.certificateID,
-                              certificate
-                            )
-                          }
-                          value={isCertificateOrderSelected}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {certificate.certificateCode}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          maxWidth={200}
-                          gutterBottom
-                          noWrap
-                        >
-                          {certificate.certificateName}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          noWrap
-                        >
-                          {certificate.classification}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          align="center"
-                          gutterBottom
-                          noWrap
-                        >
-                          {certificate.yearOfGraduation}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          align="left"
-                          gutterBottom
-                          noWrap
-                        >
-                          {certificate.organizationName}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                          align="center"
-                        >
-                          {new Date(
-                            certificate.receivedDate
-                          ).toLocaleDateString('en-GB')}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Tooltip title="View" arrow>
-                          <IconButton
-                            sx={{
-                              '&:hover': {
-                                background: theme.colors.info.lighter
-                              },
-                              color: theme.palette.info.main
-                            }}
-                            color="inherit"
-                            size="small"
-                            onClick={() => handleClickOpen(certificate)}
-                          >
-                            <VisibilityIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
+                      {column.name}
+                      {column.sort === 'asc' && <MdArrowDownward />}
+                      {column.sort === 'desc' && <MdArrowUpward />}
+                    </TableCell>
+                  ))}
+                  <TableCell></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {data.map((certificate) => {
+                  const isSelectedCert = selectedCertifiates.some(
+                    (x) => x.id === certificate.id
                   );
-                })
-              : paginatedCertificateOrders.map((certificate) => {
-                  const isCertificateOrderSelected =
-                    selectedCertifiates.includes(certificate.certificateID);
                   return (
                     <TableRow
                       hover
-                      key={certificate.certificateID}
-                      selected={isCertificateOrderSelected}
+                      key={certificate.id}
+                      selected={isSelectedCert}
                     >
                       <TableCell padding="checkbox">
                         <Checkbox
                           color="primary"
-                          checked={isCertificateOrderSelected}
-                          onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                            handleSelectOneCertificateOrder(
-                              event,
-                              certificate.certificateID,
-                              certificate
-                            )
-                          }
-                          value={isCertificateOrderSelected}
+                          checked={isSelectedCert}
+                          onChange={() => handleSelectOne(certificate)}
+                          value={isSelectedCert}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell align='center'>
                         <Typography
                           variant="body1"
                           fontWeight="bold"
@@ -595,10 +382,10 @@ const ReceivedCertsOrdersTable: FC<ReceivedCertsOrdersTableProps> = ({
                           gutterBottom
                           noWrap
                         >
-                          {certificate.certificateCode}
+                          {certificate.code}
                         </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell align='left'>
                         <Typography
                           variant="body1"
                           fontWeight="bold"
@@ -607,7 +394,7 @@ const ReceivedCertsOrdersTable: FC<ReceivedCertsOrdersTableProps> = ({
                           gutterBottom
                           noWrap
                         >
-                          {certificate.certificateName}
+                          {certificate.name}
                         </Typography>
                         <Typography
                           variant="body2"
@@ -617,7 +404,7 @@ const ReceivedCertsOrdersTable: FC<ReceivedCertsOrdersTableProps> = ({
                           {certificate.classification}
                         </Typography>
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="center">
                         <Typography
                           variant="body1"
                           fontWeight="bold"
@@ -626,10 +413,10 @@ const ReceivedCertsOrdersTable: FC<ReceivedCertsOrdersTableProps> = ({
                           gutterBottom
                           noWrap
                         >
-                          {certificate.yearOfGraduation}
+                          {certificate.graduationYear}
                         </Typography>
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="left">
                         <Typography
                           variant="body1"
                           fontWeight="bold"
@@ -638,10 +425,10 @@ const ReceivedCertsOrdersTable: FC<ReceivedCertsOrdersTableProps> = ({
                           gutterBottom
                           noWrap
                         >
-                          {certificate.organizationName}
+                          {certificate.issuerName}
                         </Typography>
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="center">
                         <Typography
                           variant="body1"
                           fontWeight="bold"
@@ -655,7 +442,7 @@ const ReceivedCertsOrdersTable: FC<ReceivedCertsOrdersTableProps> = ({
                           ).toLocaleDateString('en-GB')}
                         </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell align="right">
                         <Tooltip title="View" arrow>
                           <IconButton
                             sx={{
@@ -666,46 +453,58 @@ const ReceivedCertsOrdersTable: FC<ReceivedCertsOrdersTableProps> = ({
                             }}
                             color="inherit"
                             size="small"
-                            onClick={() => handleClickOpen(certificate)}
+                            onClick={() => handleOpenCert(certificate)}
                           >
                             <VisibilityIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        {certificate.attachmentIpfs && (
+                        <Tooltip title="Download attachment" arrow>
+                          <IconButton
+                            sx={{
+                              '&:hover': {
+                                background: theme.colors.info.lighter
+                              },
+                              color: theme.palette.info.main
+                            }}
+                            size="small"
+                            onClick={() => handleDownloadFile(certificate)}
+                          >
+                            <AttachFileIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       </TableCell>
                     </TableRow>
                   );
                 })}
-          </TableBody>
-        </Table>
+              </TableBody>
+            </Table>
+          </Fade>
+        )}
       </TableContainer>
       <Box p={2}>
-        <TablePagination
-          component="div"
-          count={filteredCertificateOrders.length}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleLimitChange}
-          page={page}
-          rowsPerPage={limit}
-          rowsPerPageOptions={[5, 10, 25, 30]}
-        />
+        {!isTableLoading && (
+          <TablePagination
+            component="div"
+            count={totalCount}
+            onPageChange={handlePageNumberChange}
+            onRowsPerPageChange={handlePageSizeChange}
+            page={filters.pageNumber}
+            rowsPerPage={filters.pageSize}
+            rowsPerPageOptions={[5, 10, 25, 30]}
+          />
+        )}
       </Box>
-      <SimpleDialog
-        fullWidth={'md'}
-        maxWidth={'800md'}
-        open={open}
-        onClose={handleClose}
-        selectedCertifiate={selectedCertifiate}
-      />
+      {selectedCertifiate && (
+        <CertDetail
+          open={selectedCertifiate != null}
+          onClose={handleCloseCert}
+          selectedCertificate={selectedCertifiate}
+        />
+      )}
     </Card>
   );
-};
-
-ReceivedCertsOrdersTable.propTypes = {
-  certificates: PropTypes.array.isRequired
-};
-
-ReceivedCertsOrdersTable.defaultProps = {
-  certificates: []
-};
+}
 
 export default ReceivedCertsOrdersTable;

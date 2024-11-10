@@ -1,30 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
+import GetCookie from '@/hooks/getCookie';
+import axiosInstance from '@/lib/axiosIntance';
+import { Certificate, CertificateMulSign, CertificateStatus, SigningType } from '@/models/certificate';
+import { cloneDeep, textToHex } from '@/utils/helpers';
+import { Asset, AssetMetadata, BrowserWallet, ForgeScript, Mint, Transaction } from '@meshsdk/core';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditTwoToneIcon from '@mui/icons-material/EditTwoTone';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
+import SendIcon from '@mui/icons-material/Send';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import {
-  Box,
-  Button,
-  Typography,
-  Dialog,
-  DialogContent,
-  DialogActions,
-  DialogContentText,
-  DialogTitle,
-  TextField
+    Box,
+    Button,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
+    TextField,
+    Tooltip,
+    Typography
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import EditTwoToneIcon from '@mui/icons-material/EditTwoTone';
-import SendIcon from '@mui/icons-material/Send';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { Asset, AssetMetadata, BrowserWallet, ForgeScript, Mint, Transaction } from '@meshsdk/core';
-import { Certificate, CertificateStatus } from '@/models/certificate';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
-import QRCode from 'react-qr-code';
-import GetCookie from '@/hooks/getCookie';
-import { API_URL } from '@/constants/appConstants';
 import { enqueueSnackbar } from 'notistack';
+import QRCode from 'react-qr-code';
+import slugify from 'slugify';
+import Loading from '@/components/Loading';
+
 const ButtonError = styled(Button)(
-  ({ theme }) => `
+    ({ theme }) => `
      background: ${theme.colors.error.main};
      color: ${theme.palette.error.contrastText};
 
@@ -35,7 +40,7 @@ const ButtonError = styled(Button)(
 );
 
 const ButtonView = styled(Button)(
-  ({ theme }) => `
+    ({ theme }) => `
      background: ${theme.colors.info.main};
      color: ${theme.palette.info.contrastText};
 
@@ -46,7 +51,7 @@ const ButtonView = styled(Button)(
 );
 
 const ButtonGen = styled(Button)(
-  ({ theme }) => `
+    ({ theme }) => `
      background: ${theme.colors.secondary.light};
      color: ${theme.palette.secondary.contrastText};
 
@@ -57,455 +62,487 @@ const ButtonGen = styled(Button)(
 );
 
 
-function SimpleDialog(props) {
-  const { open, onClose, certificates } = props;
-  const [currentIndex, setCurrentIndex] = useState(0);
+function DialogViewCerts(props: any) {
+    const { open, onClose, certificates } = props;
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const handlePrevClick = () => {
+        setCurrentIndex((currentIndex - 1 + certificates.length) % certificates.length);
+    };
 
-  const handlePrevClick = () => {
-    setCurrentIndex((currentIndex - 1 + certificates.length) % certificates.length);
-  };
+    const handleNextClick = () => {
+        setCurrentIndex((currentIndex + 1) % certificates.length);
+    };
 
-  const handleNextClick = () => {
-    setCurrentIndex((currentIndex + 1) % certificates.length);
-  };
+    if (!certificates || certificates.length === 0) {
+        return null;
+    }
 
-  if (!certificates || certificates.length === 0) {
-    return null;
-  }
+    return (
+        <Dialog open={open} onClose={onClose} maxWidth='lg'>
+            <DialogContent style={{ display: 'grid', gridTemplateColumns: '6fr 4fr', alignItems: 'center' }}>
+                <div>
+                    <img src={certificates[currentIndex].imageLink} alt="Ảnh" style={{ maxWidth: "100%", maxHeight: "100%" }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 2fr', marginLeft: '30px', fontSize: '15px', gap: '5px', backgroundColor: 'Background' }}>
+                    <p style={{ fontWeight: 'bold' }}>CODE:</p>
+                    <p>{certificates[currentIndex].code}</p>
+                    <p style={{ fontWeight: 'bold' }}>ORGANIZATION :</p>
+                    <p>{certificates[currentIndex].issuerName}</p>
+                    <p style={{ fontWeight: 'bold', borderBottom: '1px solid #000', paddingBottom: '5px' }}>DATE RECEIVED:</p>
+                    <p style={{ borderBottom: '1px solid #000' }}>{certificates[currentIndex].receivedDate ?
+                         new Date(certificates[currentIndex].receivedDate).toLocaleDateString('en-GB') : ''}</p>
+                    <p style={{ fontWeight: 'bold', marginTop: '0px' }}>RECEIVED IDENTITY:</p>
+                    <p style={{ marginTop: '0px' }}>{certificates[currentIndex].receiverIdentityNumber}</p>
+                    <p style={{ fontWeight: 'bold' }}>RECEIVED NAME:</p>
+                    <p>{certificates[currentIndex].receiverName}</p>
+                </div>
 
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth='lg'>
-      <DialogContent style={{ display: 'grid', gridTemplateColumns: '6fr 4fr', alignItems: 'center' }}>
-        <div>
-          <img src={certificates[currentIndex].imageLink} alt="Ảnh" style={{ maxWidth: "100%", maxHeight: "100%" }} />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 2fr', marginLeft: '30px', fontSize: '15px', gap: '5px', backgroundColor: 'Background' }}>
-          <p style={{ fontWeight: 'bold' }}>CODE:</p>
-          <p>{certificates[currentIndex].certificateCode}</p>
-          <p style={{ fontWeight: 'bold' }}>ORGANIZATION :</p>
-          <p>{certificates[currentIndex].organizationName}</p>
-          <p style={{ fontWeight: 'bold', borderBottom: '1px solid #000', paddingBottom: '5px' }}>DATE RECEIVED:</p>
-          <p style={{ borderBottom: '1px solid #000' }}>{certificates[currentIndex].receivedDoB}</p>
-          <p style={{ fontWeight: 'bold', marginTop: '0px' }}>RECEIVED IDENTITY:</p>
-          <p style={{ marginTop: '0px' }}>{certificates[currentIndex].receivedIdentityNumber}</p>
-          <p style={{ fontWeight: 'bold' }}>RECEIVED NAME:</p>
-          <p>{certificates[currentIndex].receivedName}</p>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
-          <Button onClick={handlePrevClick}>Prev</Button>
-          <Button onClick={handleNextClick}>Next</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
+                    <Button onClick={handlePrevClick}>Prev</Button>
+                    <Button onClick={handleNextClick}>Next</Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
+interface BulkActionProps {
+    certificates: Certificate[],
+    loadData: () => void;
+}
 
-function BulkActions(props) {
-  const [open, setOpen] = useState<boolean>(false);
-  const [openQr, setOpenQr] = useState<boolean>(false);
-  const [selectedCertificates, setSelectedCertificates] = useState<Certificate[]>([]);
-  const [status, setStatus] = useState<CertificateStatus>();
-  const [stringQr, setStringQr] = useState('');
-  const [openDelete, setOpenDelete] = useState(false)
+function BulkActions({ certificates, loadData }: BulkActionProps) {
+    const [openCerts, setOpenCerts] = useState<boolean>(false);
+    const [openQr, setOpenQr] = useState<boolean>(false);
+    const [selectedCertificates, setSelectedCertificates] = useState<Certificate[]>([]);
+    const [qrCode, setQrCode] = useState('');
+    const [openConfirmDelete, setOpenConfirmDelete] = useState(false)
+    const [issuerAddress, setIssuerAddress] = useState<string>();
+    const [isLoading, setLoading] = useState<boolean>(false);
 
-  function handleCloseDelete() {
-    setOpenDelete(false);
-  }
+    useEffect(() => {
+        setSelectedCertificates(certificates);
+    }, [certificates]);
 
-  useEffect(() => {
-    var certificates = [];
-    Object.keys(props).map((key) => (certificates = props[key]));
-    setSelectedCertificates(certificates);
-    // Hành động cập nhật status ở đây
-    if (certificates.length > 0) {
-      console.log(certificates)
-      var temp = certificates[0].certificateStatus;
-      for (let index = 1; index < certificates.length; index++) {
-        if (temp != certificates[index].certificateStatus) {
-          temp = 0;
-          break;
-        }
-      }
-      if (temp == 2) {
-        for (let index = 0; index < certificates.length; index++) {
-          if (certificates[index].contactStatus == 1) {
-            temp = 0;
-            break;
-          }
-        }
-      }
-      setStatus(temp);
-    }
-  }, [props]);
-
-  async function SignAllCertificateSelected(certs) {
-    var certificatesId: string[] = [];
-    let certificates: Certificate[];
-    Object.keys(certs).map((key) => (certificates = props[key]));
-
-    const wallet = await BrowserWallet.enable('eternl');
-    // prepare forgingScript
-    let myPromise = new Promise<void>(async function (myResolve, myReject) {
-      // "Producing Code" (May take some time)
-      const usedAddress = await wallet.getUsedAddresses();
-      const address = usedAddress[0];
-      const forgingScript = ForgeScript.withOneSignature(address);
-      const tx = new Transaction({ initiator: wallet });
-      // define asset#1 metadata
-      var assets: Mint[] = [];
-      for (let index = 0; index < certificates.length; index++) {
-        certificatesId.push(certificates[index].certificateID)
-        const assetMetadata: AssetMetadata = {
-          "certificateName": certificates[index].certificateName,
-          "classification": certificates[index].classification,
-          "image": certificates[index].ipfsLink,
-          "mediaType": "image/jpg",
-          "receivedName": certificates[index].receivedName,
-          "yearOfGraduation": "" + certificates[index].yearOfGraduation,
-          "identity": certificates[index].receivedIdentityNumber
+    useEffect(() => {
+        const getIssuerAddress = async () => {
+          const wallet = await BrowserWallet.enable('eternl');
+          const [address] = await wallet.getUsedAddresses();
+          setIssuerAddress(address);
         };
+    
+        getIssuerAddress();
+      }, []);
 
-        const asset1: Mint = {
-          assetName: certificates[index].certificateType + certificates[index].certificateCode,
+    // handle sign certs
+    const handleSignSelectedCertificates = async () => {
+        try {
+            let lstCert = selectedCertificates.filter(x => isEnableSign(x));
+            let inputs = []; 
+            for (let i = 0; i < lstCert.length; i++) {
+                let signHash = ""; 
+                if (certificates[i].signingType == SigningType.SingleSigning) {
+                    signHash = await handleSignCert(certificates[i])
+                } else if (certificates[i].signingType == SigningType.MultipleSigning) {
+                    signHash = await handleMultipleSignCert(certificates[i]);
+                }
+                if(signHash) {
+                    inputs.push({
+                        certificateId: certificates[i].id,
+                        signingType: certificates[i].signingType,
+                        signHash: signHash,
+                        issuerAddress: issuerAddress
+                      })
+                } 
+            }
+
+            if(inputs.length > 0) {
+                setLoading(true);
+                await axiosInstance.post('/Certificate/sign-multiple-certificates', inputs);
+                setLoading(false);
+                enqueueSnackbar('Sign Successful!', { variant: 'success' });
+                loadData(); 
+            }
+
+
+        } catch (error) {
+            setLoading(false);
+            console.error('Signing error:', error);
+            enqueueSnackbar('Sign Error!', { variant: 'error' });
+        }
+    }
+    const handleSignCert = async (certificate: Certificate): Promise<string> => {
+      const wallet = await BrowserWallet.enable('eternl');
+      const forgingScript = ForgeScript.withOneSignature(issuerAddress);
+      const tx = new Transaction({ initiator: wallet });
+
+      const assetMetadata: AssetMetadata = {
+        certificateName: certificate.name,
+        classification: certificate.classification,
+        image: certificate.ipfsLink,
+        mediaType: 'image/jpg',
+        receivedName: certificate.receiver.name,
+        yearOfGraduation: certificate.graduationYear,
+        identity: certificate.receiverIdentityNumber
+      };
+
+      const asset: Mint = {
+        assetName: `${slugify(certificate.receiver.name)}-${
+          certificate.receiverIdentityNumber
+        }`,
+        assetQuantity: '1',
+        metadata: assetMetadata,
+        label: '721',
+        recipient: issuerAddress
+      };
+
+      tx.mintAsset(forgingScript, asset);
+      const unsignedTx = await tx.build();
+      const signedTx = await wallet.signTx(unsignedTx);
+      await wallet.submitTx(signedTx);
+      return signedTx;
+    };
+    const handleMultipleSignCert = async (certificate: Certificate): Promise<string> => {
+      const signerLst = JSON.parse(
+        certificate.mulSignJson
+      ) as CertificateMulSign[];
+      let unsignedTx = '';
+
+      const wallet = await BrowserWallet.enable('eternl');
+      const tx = new Transaction({ initiator: wallet });
+
+      if (certificate.issuer.receiveAddress == issuerAddress) {
+        const forgingScript = ForgeScript.withOneSignature(issuerAddress);
+        const assetMetadata: AssetMetadata = {
+          certificateName: certificate.name,
+          classification: certificate.classification,
+          image: certificate.ipfsLink,
+          mediaType: 'image/jpg',
+          receivedName: certificate.receiver.name,
+          yearOfGraduation: certificate.graduationYear,
+          identity: certificate.receiverIdentityNumber
+        };
+        const asset: Mint = {
+          assetName: `${slugify(certificate.receiver.name)}-${
+            certificate.receiverIdentityNumber
+          }`,
           assetQuantity: '1',
           metadata: assetMetadata,
           label: '721',
-          recipient: address,
+          recipient: issuerAddress
         };
-        assets.push(asset1);
-        tx.mintAsset(
-          forgingScript,
-          assets[index],
-        );
+        tx.mintAsset(forgingScript, asset);
+        const signerAddresses =
+          signerLst?.map((x) => x.issuerAddress).filter(Boolean) || [];
+        tx.setRequiredSigners([issuerAddress, ...signerAddresses]);
+        unsignedTx = await tx.build();
+      } else {
+        unsignedTx = certificate.signHash;
       }
-      const unsignedTx = await tx.build();
-      const signedTx = await wallet.signTx(unsignedTx);
-      await wallet.submitTx(signedTx);
-      myResolve(); // when successful
-      myReject();  // when error
-    });
+      const signedTx = await wallet.signTx(unsignedTx, true);
 
-
-    // "Consuming Code" (Must wait for a fulfilled Promise)
-    myPromise.then(
-      function () {
-        /* code if successful */
-        fetch(API_URL + '/Certificate/issued/sign-multiple', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(certificatesId)
-        })
-          .then(() => {
-            // Xử lý phản hồi ở đây
-            enqueueSnackbar('Sign Successful!', { variant: 'success' });
-          })
-          .catch(error => {
-            // Xử lý lỗi ở đây
-            console.log(error);
-            enqueueSnackbar('Sign Error!', { variant: 'error' });
-          });
+      signerLst.forEach((signer) => {
+        if (signer.issuerAddress === issuerAddress) {
+          signer.isSigned = true;
+        }
+      });
+      if (signerLst.every((signer) => signer.isSigned)) {
+        await wallet.submitTx(signedTx);
       }
-    ).catch(function () {
-      enqueueSnackbar('Sign Error!', { variant: 'error' });
-    })
-  }
+      return signedTx;
+    };
 
-  function textToHex(text) {
-    let hex = '';
-
-    for (let i = 0; i < text.length; i++) {
-      let charCode = text.charCodeAt(i).toString(16);
-      hex += ('00' + charCode).slice(-2); // Ensure leading zero for single digit
+    // handle multiple send certs
+    const handleMultipleSendCerts = async () => {
+        try {
+            let lstCert = selectedCertificates.filter(x => isEnableSent(x));
+            for(let cert of lstCert) {
+                await handleSendCert(cert); 
+            }
+            
+            if(lstCert.length > 0) {
+                setLoading(true);
+                await axiosInstance.post('/Certificate/send-multiple-certificates', lstCert.map(x => x.id));
+                setLoading(false);
+                enqueueSnackbar('Send Successful!', { variant: 'success' });
+                loadData(); 
+            }
+        } catch (error) {
+            setLoading(false);
+            console.error('Sending error:', error);
+            enqueueSnackbar('Send Error!', { variant: 'error' });
+        } 
     }
-
-    return hex;
-  }
-
-  async function SendAllCertificateSelected(certs) {
-    var certificatesId: string[] = [];
-    let certificates: Certificate[];
-    Object.keys(certs).map((key) => (certificates = props[key]));
-
-    let myPromise = new Promise<void>(async function (myResolve, myReject) {
+    async function handleSendCert(certificate: Certificate) {
       const wallet = await BrowserWallet.enable('eternl');
-      // prepare forgingScript
       await wallet.getUsedAddresses();
       const policyId = await wallet.getPolicyIds();
       const tx = new Transaction({ initiator: wallet });
-      // define asset#1 metadata
 
-      for (let i = 0; i < certificates.length; i++) {
-        certificatesId.push(certificates[i].certificateID)
-        const assetName = textToHex(certificates[i].certificateType + certificates[i].certificateCode);
-        console.log(certificates[i].receivedAddressWallet);
-        console.log(policyId[0] + assetName);
-        const asset1: Asset = {
-          unit: policyId[0] + assetName,
-          quantity: '1',
-        };
-        tx.sendAssets(
-          certificates[i].receivedAddressWallet,
-          [asset1],
+      const assetName = `${slugify(certificate.receiver.name)}-${
+        certificate.receiverIdentityNumber
+      }`;
+      const asset: Asset = {
+        unit: policyId[0] + textToHex(assetName),
+        quantity: '1'
+      };
+
+      tx.sendAssets(certificate.receiverAddressWallet, [asset]);
+      const unsignedTx = await tx.build();
+      const signedTx = await wallet.signTx(unsignedTx, true);
+      await wallet.submitTx(signedTx);
+    } 
+
+    // check cert status
+    const isEnableSign = (certificate: Certificate) => {
+      if (!issuerAddress) {
+        return false;
+      }
+      if (certificate.status === CertificateStatus.Draft) {
+        return true;
+      }
+      if (issuerAddress === certificate.issuer.receiveAddress) {
+        return false;
+      }
+      if (certificate.signingType === SigningType.MultipleSigning) {
+        const signerList = JSON.parse(
+          certificate.mulSignJson
+        ) as CertificateMulSign[];
+        const signer = signerList?.find(
+          (s) => s.issuerAddress === issuerAddress
+        );
+        return signer ? !signer.isSigned : false;
+      }
+
+      return false;
+    };
+    const isEnableSent = (certificate: Certificate) => {
+      if (certificate.status >= CertificateStatus.Sent) {
+        return false;
+      }
+      if (certificate.signingType === SigningType.SingleSigning) {
+        return certificate.status === CertificateStatus.Signed;
+      } else {
+        const signerList = JSON.parse(
+          certificate.mulSignJson
+        ) as CertificateMulSign[];
+        return (
+          issuerAddress == certificate.issuer.receiveAddress &&
+          signerList?.every((x) => x.isSigned)
         );
       }
-      const unsignedTx = await tx.build();
-      const signedTx = await wallet.signTx(unsignedTx);
-      await wallet.submitTx(signedTx);
-      myResolve(); // when successful
-      myReject();  // when error
-    });
+    };
 
-
-    // "Consuming Code" (Must wait for a fulfilled Promise)
-    myPromise.then(
-      function () {
-        /* code if successful */
-        fetch(API_URL + '/Certificate/issued/send-multiple', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(certificatesId)
-        })
-          .then(() => {
-            // Xử lý phản hồi ở đây
-            enqueueSnackbar('Send Successful!', { variant: 'success' });
-          })
-          .catch(() => {
-            // Xử lý lỗi ở đây
-            enqueueSnackbar('Send Error!', { variant: 'error' });
-          });
-      }
-    ).catch(function () {
-      enqueueSnackbar('Send Error!', { variant: 'error' });
-    })
-
-  }
-
-  function handleDelete() {
-    setOpenDelete(true);
-  }
-
-  function DeleteAllCertificateSelected(certs) {
-    var certificatesId: string[] = [];
-    let certificates: Certificate[];
-    Object.keys(certs).map((key) => (certificates = props[key]));
-
-    for (let index = 0; index < certificates.length; index++) {
-      certificatesId.push(certificates[index].certificateID)
+    // delete certs
+    const handleOpenConfirmDelete = () => {
+        setOpenConfirmDelete(true);
     }
-    fetch(API_URL + '/Certificate/issued/delete-multiple', {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(certificatesId)
-    })
-      .then(() => {
-        // Xử lý phản hồi ở đây
-        enqueueSnackbar('Delete Successful!', { variant: 'success' });
-      })
-      .catch(() => {
-        // Xử lý lỗi ở đây
-        enqueueSnackbar('Delete Error!', { variant: 'error' });
-      });
-    setOpenDelete(false);
-  }
+    const handleCloseConfirmDelete = () => {
+        setOpenConfirmDelete(false);
+    }
+    const handleDeleteSelectedCertificates = async () => {
+        setOpenConfirmDelete(false);
+        try {
+            const certificatesId: string[] = [];
+            for (let index = 0; index < selectedCertificates.length; index++) {
+                certificatesId.push(certificates[index].id)
+            }
 
-  function ViewAllCertificateSelected(certs) {
-    handleClickOpen(certs)
-  }
-
-  function GenQrAllCertificateSelected(certs) {
-    handleClickOpenQr(certs)
-  }
-
-  const handleClickOpen = (certs) => {
-    let certificates: Certificate[];
-    Object.keys(certs).map((key) => (certificates = props[key]));
-    setSelectedCertificates(certificates);
-    setOpen(true);
-  };
-
-  const handleClose = () => {
-    setOpen(false);
-  };
-
-  // Vigenère encode
-  function encryptVigenere(plaintext: string, key: string): string {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_,0123456789';
-    const plaintextUpper = plaintext.toUpperCase();
-    const keyUpper = key.toUpperCase();
-    let ciphertext = '';
-
-    for (let i = 0; i < plaintext.length; i++) {
-      const plaintextChar = plaintextUpper[i];
-      const keyChar = keyUpper[i % key.length];
-
-      if (alphabet.includes(plaintextChar)) {
-        const plaintextIndex = alphabet.indexOf(plaintextChar);
-        const keyIndex = alphabet.indexOf(keyChar);
-        const encryptedIndex = (plaintextIndex + keyIndex) % alphabet.length;
-        const encryptedChar = alphabet[encryptedIndex];
-        ciphertext += encryptedChar;
-      } else {
-        ciphertext += plaintextChar;
-      }
+            const res = await axiosInstance.post('/Certificate/delete-multiple-cert', {
+                data: { certificatesId }
+            });
+            if (res) {
+                enqueueSnackbar('Delete Successful!', { variant: 'success' });
+            } else {
+                enqueueSnackbar('Delete Error!', { variant: 'error' });
+            }
+        } catch (err) {
+            enqueueSnackbar('Delete Error!', { variant: 'error' });
+        }
     }
 
-    return ciphertext;
-  }
+    // View certs
+    const handleViewCerts = () => {
+        setOpenCerts(true);
+    }
+    const handleCloseCerts = () => {
+        setOpenCerts(false);
+    }
 
+    // Qrcode
+    const handleGenQrCertificateSelecteds = () => {
+        let stakeId: string = GetCookie('stakeId')
+        let lstCert = cloneDeep(selectedCertificates);
+        lstCert.map(certificate => (stakeId += ',' + certificate.code))
+        setQrCode('https://utcert.vercel.app/?q=' + encryptVigenere(stakeId, 'KEYWORD'));
+        setOpenQr(true);
+    }
+    const handleCloseQr = () => {
+        setOpenQr(false);
+    };
 
+    // Vigenère encode
+    const encryptVigenere = (plaintext: string, key: string): string => {
+        const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_,0123456789';
+        const plaintextUpper = plaintext.toUpperCase();
+        const keyUpper = key.toUpperCase();
+        let ciphertext = '';
 
+        for (let i = 0; i < plaintext.length; i++) {
+            const plaintextChar = plaintextUpper[i];
+            const keyChar = keyUpper[i % key.length];
 
+            if (alphabet.includes(plaintextChar)) {
+                const plaintextIndex = alphabet.indexOf(plaintextChar);
+                const keyIndex = alphabet.indexOf(keyChar);
+                const encryptedIndex = (plaintextIndex + keyIndex) % alphabet.length;
+                const encryptedChar = alphabet[encryptedIndex];
+                ciphertext += encryptedChar;
+            } else {
+                ciphertext += plaintextChar;
+            }
+        }
 
-  // event of Generate Qrcode
-  const handleClickOpenQr = (certs) => {
-    let temp: string = GetCookie('stakeId')
-    let certificates: Certificate[];
+        return ciphertext;
+    }
 
-    console.log(certs);
+    if (isLoading) {
+        return <Loading />;
+      }
+    return (
+        <>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box display="flex" alignItems="center">
+                    <Typography variant="h5" color="text.secondary">
+                        Bulk actions:
+                    </Typography>
+                    <ButtonGen
+                        sx={{ ml: 1 }}
+                        startIcon={<QrCodeScannerIcon />}
+                        variant="contained"
+                        onClick={() => (handleGenQrCertificateSelecteds())}
+                    >
+                        Generate QR
+                    </ButtonGen>
+                    <ButtonView
+                        sx={{ ml: 1 }}
+                        startIcon={<VisibilityIcon />}
+                        variant="contained"
+                        onClick={() => (handleViewCerts())}
+                    >
+                        View
+                    </ButtonView>
+                    {selectedCertificates.filter(x => isEnableSign(x)).length > 0 &&
+                       <>
+                            <Tooltip
+                                title={`${selectedCertificates.filter(x => isEnableSign(x)).length} certificates signing`} 
+                                arrow
+                            >
+                                <ButtonView
+                                    sx={{ ml: 1 }}
+                                    startIcon={<EditTwoToneIcon />}
+                                    variant="contained"
+                                    onClick={() => (handleSignSelectedCertificates())}
+                                >
+                                    Sign
+                                </ButtonView>
+                            </Tooltip>
+                       </>
+                    }
+                    {selectedCertificates.filter(x => isEnableSent(x)).length > 0 &&
+                        <Tooltip 
+                            title={`${selectedCertificates.filter(x => x.status == CertificateStatus.Signed && isEnableSent(x)).length} certificates sending`} 
+                            arrow
+                        >
+                        <Button
+                            sx={{ ml: 1 }}
+                            startIcon={<SendIcon />}
+                            variant="contained"
+                            onClick={() => handleMultipleSendCerts()}
+                        >
+                            Send
+                        </Button>
+                    </Tooltip>}
+                    {selectedCertificates.filter(x => x.status == CertificateStatus.Draft).length > 0 && 
+                        <Tooltip   
+                        title={`${selectedCertificates.filter(x => x.status == CertificateStatus.Draft).length} certificates deleting`} 
+                        arrow>
+                            <ButtonError
+                                sx={{ ml: 1 }}
+                                startIcon={<DeleteIcon />}
+                                variant="contained"
+                                onClick={() => handleOpenConfirmDelete()}
+                            >
+                                Delete
+                            </ButtonError>
+                        </Tooltip>
+                    }
+                </Box>
+            </Box>
 
-    Object.keys(certs).map((key) => (certificates = props[key]));
-    certificates.map(certificate => (temp += ',' + certificate.certificateCode))
-
-    temp = encryptVigenere(temp, 'KEYWORD')
-    setStringQr('https://utcert.vercel.app/?q=' + temp);
-
-    setOpenQr(true);
-  };
-
-  const handleCloseQr = () => {
-    setOpenQr(false);
-  };
-
-
-
-  return (
-    <>
-      <Box display="flex" alignItems="center" justifyContent="space-between">
-        <Box display="flex" alignItems="center">
-          <Typography variant="h5" color="text.secondary">
-            Bulk actions:
-          </Typography>
-          {status == 1 ?
-            <>
-              <ButtonView
-                sx={{ ml: 1 }}
-                startIcon={<EditTwoToneIcon />}
-                variant="contained"
-                onClick={() => (SignAllCertificateSelected(props))}
-              >
-                Sign
-              </ButtonView>
-              <ButtonError
-                sx={{ ml: 1 }}
-                startIcon={<DeleteIcon />}
-                variant="contained"
-                onClick={handleDelete}
-              >
-                Delete
-              </ButtonError>
-            </>
-            : (status == 2 ? <ButtonView
-              sx={{ ml: 1 }}
-              startIcon={<SendIcon />}
-              variant="contained"
-              onClick={() => (SendAllCertificateSelected(props))}
-            >
-              Send
-            </ButtonView> : (status == 3 ?
-              <></> : (!status && status != 0 ? <ButtonGen
-                sx={{ ml: 1 }}
-                startIcon={<QrCodeScannerIcon />}
-                variant="contained"
-                onClick={() => (GenQrAllCertificateSelected(props))}
-              >
-                Generate QR
-              </ButtonGen>
-                : <></>)))}
-          <ButtonView
-            sx={{ ml: 1 }}
-            startIcon={<VisibilityIcon />}
-            variant="contained"
-            onClick={() => (ViewAllCertificateSelected(props))}
-          >
-            View
-          </ButtonView>
-        </Box>
-      </Box>
-
-      <SimpleDialog
-        open={open}
-        onClose={handleClose}
-        certificates={selectedCertificates}
-      />
-
-      <Dialog
-        open={openQr}
-        onClose={handleCloseQr}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-      >
-        <DialogTitle id="alert-dialog-title">
-          {"Your certifiates code here"}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText id="alert-dialog-description" style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ marginBottom: "10px" }}>
-              <QRCode
-                size={300}
-                bgColor="white"
-                fgColor="black"
-                value={stringQr}
-              />
-            </div>
-            <TextField
-              id="outlined-read-only-input"
-              label="QR Code"
-              defaultValue={stringQr}
-              InputProps={{
-                readOnly: true,
-              }}
+            <DialogViewCerts
+                open={openCerts}
+                onClose={handleCloseCerts}
+                certificates={selectedCertificates}
             />
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseQr}>Confirm</Button>
-        </DialogActions>
-      </Dialog>
 
-      <Dialog
-        open={openDelete}
-        onClose={handleCloseDelete}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-      >
-        <DialogTitle id="alert-dialog-title">
-          {"Are you sure to delete this certificate?"}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText id="alert-dialog-description">
-            You can't undo this operation
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDelete}>Disagree</Button>
-          <Button onClick={() => DeleteAllCertificateSelected(props)} autoFocus>
-            Agree
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </>
-  );
+            <Dialog
+                open={openQr}
+                onClose={handleCloseQr}
+                aria-labelledby="alert-dialog-title"
+                aria-describedby="alert-dialog-description"
+            >
+                <DialogTitle id="alert-dialog-title">
+                    {"Your certifiates code here"}
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText id="alert-dialog-description" style={{ display: "flex", flexDirection: "column" }}>
+                        <div style={{ marginBottom: "10px" }}>
+                            <QRCode
+                                size={300}
+                                bgColor="white"
+                                fgColor="black"
+                                value={qrCode}
+                            />
+                        </div>
+                        <TextField
+                            id="outlined-read-only-input"
+                            label="QR Code"
+                            defaultValue={qrCode}
+                            InputProps={{
+                                readOnly: true,
+                            }}
+                        />
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseQr}>Confirm</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={openConfirmDelete}
+                onClose={handleCloseConfirmDelete}
+                aria-labelledby="alert-dialog-title"
+                aria-describedby="alert-dialog-description"
+            >
+                <DialogTitle id="alert-dialog-title">
+                    {"Are you sure to delete this certificates?"}
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText id="alert-dialog-description">
+                        You can't undo this operation
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseConfirmDelete}>Disagree</Button>
+                    <Button onClick={() => handleDeleteSelectedCertificates()} autoFocus>
+                        Agree
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </>
+    );
 }
 
 export default BulkActions;

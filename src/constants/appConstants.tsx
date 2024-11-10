@@ -1,2 +1,2 @@
-export const API_URL = 'https://dev-utcert.somee.com/api/v1';
-export const API_CREATE_URL = 'https://dev-utcert.somee.com/api/v1';
+export const API_URL = 'https://utcert-service20241110141000.azurewebsites.net';
+export const API_CREATE_URL = 'https://utcert-service20241110141000.azurewebsites.net';

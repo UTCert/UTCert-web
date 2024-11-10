@@ -1,36 +1,29 @@
+import { useStore } from '@/contexts/GlobalContext';
 import { Typography, Avatar, Grid, Skeleton } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import GetCookie from '@/hooks/getCookie';
+import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
-import { API_URL } from '@/constants/appConstants';
 function PageHeader() {
-  const [user, setUser] = useState(null);
+  const { user,  authToken, loading} = useStore();
+  const router = useRouter();
+  const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    axios.post(API_URL + '/Home',
-      GetCookie("stakeId"),
-      {
-        headers: {
-          'accept': '*/*',
-          'Content-Type': 'application/json'
-        }
-      }
-    ).then(response => {
-      console.log("Thanh cong");
-      setUser(response.data);
-      setIsLoading(false); // set isLoading to false when the response is received
-    }).catch(error => {
-      console.log(error);
-      setIsLoading(false); // set isLoading to false when there's an error
-    });
-  }, []);
-
-  const theme = useTheme();
+    setIsLoading(true);
+    if(loading) {
+      return ;
+    }
+    if (!authToken) {
+      router.push('/'); 
+    }
+    if (user) {
+      setIsLoading(false); 
+    } 
+  }, [authToken, user, router.asPath]);
 
   // render a loading message while the API is being called
-  if (isLoading) {
+  if (isLoading || !authToken) {
     return (
       <>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 9fr' }}>
@@ -52,13 +45,13 @@ function PageHeader() {
             height: theme.spacing(8)
           }}
           variant="rounded"
-          alt={user.username}
-          src={user.logo}
+          alt={user.name}
+          src={user.avatarUri}
         />
       </Grid>
       <Grid item>
         <Typography variant="h3" component="h3" gutterBottom>
-          Welcome, {user.username}!
+          Welcome, {user.name}!
         </Typography>
         <Typography variant="subtitle2">
           Today is a good day to start study!

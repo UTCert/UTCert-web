@@ -3,12 +3,14 @@ import {
   Button,
   Card,
   CardHeader,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
   Divider,
+  Fade,
   FormControl,
   IconButton,
   Input,
@@ -26,198 +28,35 @@ import {
   Typography,
   useTheme
 } from '@mui/material';
-import { ChangeEvent, FC, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import Label from '@/components/Label';
-import { API_URL } from '@/constants/appConstants';
-import GetCookie from '@/hooks/getCookie';
-import { Contact, ContactName, ContactStatus } from '@/models/contact';
+import { Contact, ContactStatus } from '@/models/contact';
 import DeleteTwoToneIcon from '@mui/icons-material/DeleteTwoTone';
 import HandshakeIcon from '@mui/icons-material/Handshake';
 import { enqueueSnackbar } from 'notistack';
 import { FaSpinner } from 'react-icons/fa';
 import { MdArrowDownward, MdArrowUpward } from 'react-icons/md';
 import styles from '../../../../styles/IssuedCerts.module.css';
-import BulkActions from './BulkActions';
-interface ContactsOrdersTableProps {
-  className?: string;
-  contactOrders: Contact[];
-  fetchData: () => void;
-}
+import axiosInstance from '@/lib/axiosIntance';
+import { HTTP_STATUS } from '@/enum/HTTP_SATUS';
+import { useStore } from '@/contexts/GlobalContext';
 
 interface Filters {
-  contactStatus?: ContactStatus;
-  contactName?: ContactName;
+  contactName?: string;
+  sorting: string;
+  pageNumber: number;
+  pageSize: number;
+  contactStatus ?: ContactStatus, 
 }
 
 const columns = [
-  { key: 'contactCode', name: 'Code' },
-  { key: 'contactName', name: 'Contact Name' },
-  { key: 'createdDate', name: 'Created Date' }
+  { key: 'id', name: 'Code', sort: '', align: 'center'},
+  { key: 'contactName', name: 'Contact Name', sort: '', align: 'left'},
+  { key: 'createdDate', name: 'Created Date', sort: '', align: 'center' }
 ];
 
-const getStatusLabel = (contactStatus: ContactStatus): JSX.Element => {
-  const map = {
-    1: {
-      text: 'Pending',
-      color: 'primary'
-    },
-    2: {
-      text: 'Connected',
-      color: 'success'
-    }
-  };
-  const { text, color }: any = map[contactStatus];
-  return <Label color={color}>{text}</Label>;
-};
-
-const applyFilters = (
-  contactOrders: Contact[],
-  filters: Filters
-): Contact[] => {
-  return contactOrders.filter((contactOrder) => {
-    let matches = true;
-
-    if (
-      filters.contactStatus &&
-      contactOrder.contactStatus != filters.contactStatus
-    ) {
-      matches = false;
-    }
-
-    if (
-      filters.contactName &&
-      !contactOrder.contactName
-        .toLowerCase()
-        .includes(filters.contactName.toLowerCase())
-    ) {
-      matches = false;
-    }
-
-    return matches;
-  });
-};
-
-const applyPagination = (
-  contactOrders: Contact[],
-  page: number,
-  limit: number
-): Contact[] => {
-  return contactOrders.slice(page * limit, page * limit + limit);
-};
-
-const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
-  contactOrders,
-  fetchData
-}) => {
-  const [selectedContactOrders] = useState<string[]>([]);
-  const selectedBulkActions = selectedContactOrders.length > 0;
-  const [page, setPage] = useState<number>(0);
-  const [limit, setLimit] = useState<number>(5);
-  const [filters, setFilters] = useState<Filters>({
-    contactStatus: null,
-    contactName: null
-  });
-  const [selectedId, setSelectedId] = useState('');
-  const [open, setOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [sortedContactOrders, setSortedContactOrders] = useState([]);
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [sortColumn, setSortColumn] = useState(null);
-  const [isSorted, setIsSorted] = useState(false);
-  const [filteredData, setFilteredData] = useState([]);
-  const [paginatedSortedData, setPaginatedSortedData] = useState([]);
-
-  useEffect(() => {
-    const filteredData = applyFilters(contactOrders, filters);
-    const paginatedData = applyPagination(filteredData, page, limit);
-
-    setFilteredData(filteredData);
-    setPaginatedSortedData(paginatedData);
-  }, [contactOrders, filters, page, limit]);
-
-  const handleSort = (column) => {
-    let newSortDirection;
-
-    if (sortColumn === column && sortDirection === 'desc' && isSorted) {
-      setSortedContactOrders(contactOrders);
-      setSortDirection(null);
-      setSortColumn(null);
-      setIsSorted(false);
-      return;
-    }
-
-    if (sortColumn === column && sortDirection === 'asc') {
-      newSortDirection = 'desc';
-    } else if (sortColumn === column && sortDirection === 'desc') {
-      newSortDirection = null;
-    } else {
-      newSortDirection = 'asc';
-    }
-    const sortedData = [...paginatedContactOrders].sort((a, b) => {
-      if (column === 'createdDate') {
-        const dateA = new Date(a[column]);
-        const dateB = new Date(b[column]);
-        if (dateA < dateB) {
-          return newSortDirection === 'asc' ? -1 : 1;
-        }
-        if (dateA > dateB) {
-          return newSortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
-      } else {
-        if (a[column] < b[column]) {
-          return newSortDirection === 'asc' ? -1 : 1;
-        }
-        if (a[column] > b[column]) {
-          return newSortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
-      }
-    });
-
-    const filteredData = applyFilters(sortedData, filters);
-    const paginatedData = applyPagination(filteredData, page, limit);
-
-    setFilteredData(filteredData);
-    setPaginatedSortedData(paginatedData);
-
-    setSortedContactOrders(paginatedData);
-    setSortDirection(newSortDirection);
-    setSortColumn(column);
-    setIsSorted(true);
-  };
-
-  const renderSortIcon = (columnKey) => {
-    if (sortColumn === columnKey) {
-      return (
-        <>{sortDirection === 'asc' ? <MdArrowUpward /> : <MdArrowDownward />}</>
-      );
-    }
-    return null;
-  };
-
-  const handleReload = async () => {
-    try {
-      setIsLoading(true);
-      await fetchData();
-      setIsLoading(false);
-      enqueueSnackbar('Load Successful!', { variant: 'success' });
-    } catch (error) {
-      setIsLoading(false);
-      enqueueSnackbar('Load Error!', { variant: 'error' });
-    }
-  };
-
-  const handleClickOpen = () => {
-    setOpen(true);
-  };
-
-  const handleClose = () => {
-    setOpen(false);
-  };
-
-  const statusOptions = [
+const statusOptions = [
     {
       id: 'all',
       name: 'All'
@@ -232,15 +71,123 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
     }
   ];
 
+function ContactsOrdersTable() {
+  const [isTableLoading, setTableLoading] = useState<boolean>(true);
+  const [selectedContact, setSelectedContact] = useState<Contact>(null); 
+  const [isLoading, setLoading] = useState<boolean>(false);
+  const [data, setData] = useState<Contact[]>([]);
+  const [filters, setFilters] = useState<Filters>({
+    contactStatus: null, 
+    pageNumber: 0,
+    pageSize: 5,
+    contactName: '',
+    sorting: ''
+  });
+
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [openDialog, setOpenDialog] = useState<{
+    isOpen: boolean;
+    type: string;
+  }>({
+    isOpen: false,
+    type: ''
+  });
+  const theme = useTheme();
+  const {user} = useStore(); 
+  
+
+  // Xử lý debounce trong useEffect
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchData();
+    }, 500);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [filters]);
+
+  // #region function
+  // label status
+  const getStatusLabel = (status: ContactStatus): JSX.Element => {
+    const statusMap: Record<ContactStatus, { text: string; color: any }> = {
+      '1': { text: 'Pending', color: 'info' },
+      '2': { text: 'Connected', color: 'success' }
+    };
+
+    const { text, color } = statusMap[status] ?? {
+      text: 'Pending',
+      color: 'info'
+    };
+    return <Label color={color}>{text}</Label>;
+  };
+
+  const handleConfirmDelete = (contact: Contact) => {
+    setSelectedContact(contact); 
+    setOpenDialog({isOpen: true, type: 'delete'})
+  }
+
+  const handleCloseDialog = () => {
+    setSelectedContact(null); 
+    setOpenDialog({isOpen: false, type: ''})
+  }
+
+  // #endregion
+
+  // #region filter
+  const handleSort = async (column: {
+    key: string;
+    name: string;
+    sort?: string;
+    isSort?: boolean;
+  }) => {
+    if (!column.isSort) {
+      return;
+    }
+
+    if (!column.sort) {
+      column.sort = 'asc';
+    } else if (column.sort == 'desc') {
+      column.sort = 'asc';
+    } else {
+      column.sort = 'desc';
+    }
+
+    columns.forEach(x => {
+      if(x.key == column.key) {
+        x.sort = column.sort; 
+      } else {
+        x.sort = ''; 
+      }
+    });
+    
+    let sorting = `${column.key} ${column.sort}`;
+    setFilters({
+      ...filters,
+      sorting
+    });
+  };
+
+  const handlePageNumberChange = (_: any, newPage: number) => {
+    console.log(newPage);
+    setFilters({
+      ...filters,
+      pageNumber: newPage
+    });
+  };
+
+  const handlePageSizeChange = (event: any) => {
+    setFilters({
+      ...filters,
+      pageSize: parseInt(event.target.value)
+    });
+  };
+
   const handleFilterChange = (filterName: string, value: any) => {
     if (filterName === 'contactStatus') {
-      let newValue = null;
-      if (value !== 'all') {
-        newValue = value;
-      }
       setFilters((prevFilters) => ({
         ...prevFilters,
-        contactStatus: newValue
+        contactStatus: value !== 'all' ? parseInt(value) : null
       }));
     } else {
       setFilters((prevFilters) => ({
@@ -250,81 +197,64 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
     }
   };
 
-  const handlePageChange = (_event: any, newPage: number): void => {
-    setIsSorted(false);
-    setPage(newPage);
+  // #endregion
+
+  // #region API
+  const fetchData = async () => {
+    let input = { ...filters };
+    input.pageNumber = filters.pageNumber + 1;
+    try {
+      setTableLoading(true);
+      const response = await axiosInstance.post('/Contact/get-contacts', input);
+      setTableLoading(false);
+
+      if (response.status == HTTP_STATUS.OK) {
+        const { data } = response.data;
+        setData(data.items);
+        setTotalCount(data.totalCount);
+      } else {
+        setData([]);
+      }
+    } catch (error) {
+      setTableLoading(false);
+      console.error(error);
+    }
   };
 
-  const handleLimitChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    setLimit(parseInt(event.target.value));
-  };
-
-  const filteredContactOrders = applyFilters(contactOrders, filters);
-
-  const paginatedContactOrders = applyPagination(
-    filteredContactOrders,
-    page,
-    limit
-  );
-  const theme = useTheme();
-
-  function handleSelectDelete(contactId) {
-    setSelectedId(contactId);
-    handleClickOpen();
+  const handleAccept = async (contact: Contact) => {
+    try {
+        setLoading(true);
+        const {data} = await axiosInstance.put('/Contact/update-status',{
+            id: contact.id, 
+            status: ContactStatus.Accepted, 
+        }); 
+        setLoading(false);
+        if(data.success) {
+            enqueueSnackbar('Accept contact successful!', { variant: 'success' });
+        }
+        fetchData(); 
+    } catch (error) {
+        setLoading(false);
+        enqueueSnackbar('Accept contact error!', { variant: 'error' });
+    }
   }
 
-  function handleDelete(contactId) {
-    const apiUrl = API_URL + '/Contact';
-
-    fetch(apiUrl, {
-      method: 'DELETE',
-      headers: {
-        Accept: '*/*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(contactId)
-    })
-      .then((response) => response.json())
-      .then(() => {
-        enqueueSnackbar('Delete Successful!', { variant: 'success' });
-        // Xử lý dữ liệu trả về nếu cần
-      })
-      .catch(() => {
-        enqueueSnackbar('Delete Error!', { variant: 'error' });
-        // Xử lý lỗi nếu có
-      });
-    setOpen(false);
+  const handleDelete = async (contact: Contact) => {
+    try {
+        setLoading(true); 
+        const {data} = await axiosInstance.delete(`Contact/${contact.id}`)
+        if(data.success) {
+            enqueueSnackbar('Delete contact successful!', { variant: 'success' });
+        }
+    } catch (error) {
+        setLoading(false); 
+        enqueueSnackbar('Delete contact error!', { variant: 'error' });
+    }
   }
-
-  function handleAccept(contactId) {
-    const apiUrl = API_URL + '/Contact/accept';
-
-    fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        Accept: '*/*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(contactId)
-    })
-      .then((response) => response.json())
-      .then(() => {
-        enqueueSnackbar('Accept Successful!', { variant: 'success' });
-        // Xử lý dữ liệu trả về nếu cần
-      })
-      .catch(() => {
-        enqueueSnackbar('Accept Fail!', { variant: 'error' });
-      });
-  }
+  
 
   return (
     <Card>
-      {selectedBulkActions && (
-        <Box flex={1} p={2}>
-          <BulkActions />
-        </Box>
-      )}
-      {!selectedBulkActions && (
         <CardHeader
           action={
             <Box width={350}>
@@ -339,7 +269,7 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
                     className={`${styles.spinner} ${
                       isLoading ? styles.rotate : ''
                     }`}
-                    onClick={handleReload}
+                    onClick={fetchData}
                     style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }} // Change cursor style when isLoading is true
                   />
                 </div>
@@ -364,9 +294,9 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
                   <FormControl fullWidth variant="outlined">
                     <InputLabel>Contact Name</InputLabel>
                     <Input
-                      onChange={(e) =>
-                        handleFilterChange('contactName', e.target.value)
-                      }
+                       onChange={(e) =>
+                            handleFilterChange('contactName', e.target.value)
+                        }
                       placeholder="Enter Certificate Name"
                     />
                   </FormControl>
@@ -376,39 +306,60 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
           }
           title="Contacts"
         />
-      )}
       <Divider />
       <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              {columns.map((column) => (
-                <TableCell
-                  key={column.key}
-                  onClick={() => handleSort(column.key)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {column.name}
-                  {renderSortIcon(column.key)}
-                </TableCell>
-              ))}
-              <TableCell>Status</TableCell>
-              <TableCell></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {isSorted
-              ? paginatedSortedData.map((contactOrder) => {
-                  const isContactOrderSelected = selectedContactOrders.includes(
-                    contactOrder.contactID
-                  );
-                  return (
-                    <TableRow
-                      hover
-                      key={contactOrder.contactID}
-                      selected={isContactOrderSelected}
+      {isTableLoading ? (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              height: '400px',
+              flexDirection: 'column'
+            }}
+          >
+            <CircularProgress
+              size={60}
+              thickness={5}
+              style={{ color: '#3f51b5' }}
+            />
+            <Typography variant="h6" style={{ marginTop: '16px' }}>
+              Loading data, please wait...
+            </Typography>
+          </div>
+        ) : (
+       <Fade in={!isTableLoading} timeout={500}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  {columns.map((column) => (
+                    <TableCell
+                      key={column.key}
+                      onClick={() => handleSort(column)}
+                      style={{ cursor: 'pointer' }}
+                      align={
+                        column.align as
+                          | 'left'
+                          | 'center'
+                          | 'right'
+                          | 'justify'
+                          | 'inherit'
+                      }
                     >
-                      <TableCell>
+                      {column.name}
+                      {column.sort === 'asc' && <MdArrowDownward />}
+                      {column.sort === 'desc' && <MdArrowUpward />}
+                    </TableCell>
+                  ))}
+                  <TableCell align='center'>Status</TableCell>
+                  <TableCell></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {data.map((contact, index) => {
+                  return (
+                    <TableRow hover key={contact.id}>
+                      <TableCell align='center'>
                         <Typography
                           variant="body1"
                           fontWeight="bold"
@@ -416,10 +367,10 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
                           gutterBottom
                           noWrap
                         >
-                          {contactOrder.contactCode}
+                          {filters.pageSize * filters.pageNumber + index + 1}
                         </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell align='left'>
                         <Typography
                           variant="body1"
                           fontWeight="bold"
@@ -427,19 +378,19 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
                           gutterBottom
                           noWrap
                         >
-                          {contactOrder.contactName}
+                          {contact.contactName}
                         </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell align='center'>
                         <Typography
                           variant="body1"
                           fontWeight="bold"
                           color="text.primary"
                           gutterBottom
                         >
-                          {new Date(
-                            contactOrder.createdDate
-                          ).toLocaleDateString('en-GB')}
+                          {new Date(contact.createdDate).toLocaleDateString(
+                            'en-GB'
+                          )}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
@@ -447,16 +398,17 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
                           variant="body1"
                           fontWeight="bold"
                           color="text.primary"
-                          align="left"
+                          align="right"
                           gutterBottom
                           noWrap
                         >
-                          {getStatusLabel(contactOrder.contactStatus)}
+                          {getStatusLabel(contact.contactStatus)}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
-                        {contactOrder.contactStatus == 1 &&
-                          contactOrder.receivedID == GetCookie('stakeId') && (
+                        {contact.contactStatus == ContactStatus.Pending &&
+                        contact.receiverId == user.id && 
+                           (
                             <Tooltip title="Accept" arrow>
                               <IconButton
                                 sx={{
@@ -468,14 +420,14 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
                                 color="inherit"
                                 size="small"
                                 onClick={() =>
-                                  handleAccept(contactOrder.contactID)
-                                }
+                                    handleAccept(contact)
+                                  }
                               >
-                                <HandshakeIcon fontSize="medium" />
+                                <HandshakeIcon fontSize="medium"  />
                               </IconButton>
                             </Tooltip>
                           )}
-                        {contactOrder.contactStatus == 1 && (
+                        {contact.contactStatus == ContactStatus.Accepted && (
                           <Tooltip title="Delete" arrow>
                             <IconButton
                               sx={{
@@ -486,109 +438,7 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
                               }}
                               color="inherit"
                               size="small"
-                              onClick={() =>
-                                handleSelectDelete(contactOrder.contactID)
-                              }
-                            >
-                              <DeleteTwoToneIcon fontSize="medium" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              : paginatedContactOrders.map((contactOrder) => {
-                  const isContactOrderSelected = selectedContactOrders.includes(
-                    contactOrder.contactID
-                  );
-                  return (
-                    <TableRow
-                      hover
-                      key={contactOrder.contactID}
-                      selected={isContactOrderSelected}
-                    >
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {contactOrder.contactCode}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {contactOrder.contactName}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                        >
-                          {new Date(
-                            contactOrder.createdDate
-                          ).toLocaleDateString('en-GB')}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          align="left"
-                          gutterBottom
-                          noWrap
-                        >
-                          {getStatusLabel(contactOrder.contactStatus)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        {contactOrder.contactStatus == 1 &&
-                          contactOrder.receivedID == GetCookie('stakeId') && (
-                            <Tooltip title="Accept" arrow>
-                              <IconButton
-                                sx={{
-                                  '&:hover': {
-                                    background: theme.colors.primary.lighter
-                                  },
-                                  color: theme.palette.primary.main
-                                }}
-                                color="inherit"
-                                size="small"
-                                onClick={() =>
-                                  handleAccept(contactOrder.contactID)
-                                }
-                              >
-                                <HandshakeIcon fontSize="medium" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        {contactOrder.contactStatus == 1 && (
-                          <Tooltip title="Delete" arrow>
-                            <IconButton
-                              sx={{
-                                '&:hover': {
-                                  background: theme.colors.error.lighter
-                                },
-                                color: theme.palette.error.main
-                              }}
-                              color="inherit"
-                              size="small"
-                              onClick={() =>
-                                handleSelectDelete(contactOrder.contactID)
-                              }
+                              onClick={() => handleConfirmDelete(contact)}
                             >
                               <DeleteTwoToneIcon fontSize="medium" />
                             </IconButton>
@@ -598,23 +448,24 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
                     </TableRow>
                   );
                 })}
-          </TableBody>
-        </Table>
+              </TableBody>
+            </Table>
+       </Fade> )}
       </TableContainer>
       <Box p={2}>
         <TablePagination
           component="div"
-          count={filteredContactOrders.length}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleLimitChange}
-          page={page}
-          rowsPerPage={limit}
+          count={totalCount}
+          onPageChange={handlePageNumberChange}
+          onRowsPerPageChange={handlePageSizeChange}
+          page={filters.pageNumber}
+          rowsPerPage={filters.pageSize}
           rowsPerPageOptions={[5, 10, 25, 30]}
         />
       </Box>
       <Dialog
-        open={open}
-        onClose={handleClose}
+        open={openDialog.isOpen}
+        onClose={() => setOpenDialog({ isOpen: false, type: '' })}
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-description"
       >
@@ -627,14 +478,12 @@ const ContactsOrdersTable: FC<ContactsOrdersTableProps> = ({
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Disagree</Button>
-          <Button onClick={() => handleDelete(selectedId)} autoFocus>
-            Agree
-          </Button>
+          <Button onClick={() => handleCloseDialog()}>Disagree</Button>
+          <Button autoFocus onClick={() => handleDelete(selectedContact)}>Agree</Button>
         </DialogActions>
       </Dialog>
     </Card>
   );
-};
+}
 
 export default ContactsOrdersTable;
