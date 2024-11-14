@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   typescript: {
-    ignoreBuildErrors: true, // Disable TypeScript errors during build
+    ignoreBuildErrors: true,
   },
   webpack: function (config, options) {
     config.experiments = {
@@ -11,5 +11,4 @@ const nextConfig = {
     return config;
   },
 };
-
 module.exports = nextConfig;

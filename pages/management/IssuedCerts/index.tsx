@@ -2,7 +2,7 @@ import Footer from '@/components/Footer';
 import PageTitleWrapper from '@/components/PageTitleWrapper';
 import PageHeader from '@/content/Management/Transactions/PageHeader';
 import SidebarLayout from '@/layouts/SidebarLayout';
-import { Container, Grid, IconButton } from '@mui/material';
+import { Container, Grid, IconButton, Portal } from '@mui/material';
 import Head from 'next/head';
 
 import IssuedCertsOrders from '@/content/Management/Transactions/IssuedCertsOrders';
@@ -41,9 +41,11 @@ function ApplicationsTransactions() {
           </Grid>
         </Grid>
       </Container>
-      <SnackbarProvider
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        action={snackbarKey => <SnackbarCloseButton snackbarKey={snackbarKey} />} />
+      <Portal>
+        <SnackbarProvider
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          action={snackbarKey => <SnackbarCloseButton snackbarKey={snackbarKey} />} />
+      </Portal>
       <Footer />
     </>
   );

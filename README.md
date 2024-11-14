@@ -119,11 +119,7 @@ Ensure you have the following installed:
 ├── README.md
 ├── tsconfig.json
 ```
-
 ## License
-
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
-
 ---
-
 For any questions or support, please contact [utcert.support@gmail.com](mailto:utcert.support@gmail.com).

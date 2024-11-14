@@ -98,7 +98,7 @@ function ReceivedCertsOrdersTable() {
     });
   };
   const handleSelectAll = (event: ChangeEvent<HTMLInputElement>): void => {
-    event.target.checked ? setSelectedCertificates(data) : [];
+    event.target.checked ? setSelectedCertificates(data) : setSelectedCertificates([]);
   };
 
   // view cert detail
@@ -329,7 +329,7 @@ function ReceivedCertsOrdersTable() {
                   <TableCell padding="checkbox">
                     <Checkbox
                       color="primary"
-                      checked={selectedCertifiates.length == data.length}
+                      checked={selectedCertifiates.length > 0 && selectedCertifiates.length === data.length}
                       onChange={handleSelectAll}
                     />
                   </TableCell>
