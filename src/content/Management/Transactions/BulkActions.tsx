@@ -77,6 +77,9 @@ function DialogViewCerts(props: any) {
         return null;
     }
 
+    if(!certificates) {
+        return <></>
+    }
     return (
         <Dialog open={open} onClose={onClose} maxWidth='lg'>
             <DialogContent style={{ display: 'grid', gridTemplateColumns: '6fr 4fr', alignItems: 'center' }}>

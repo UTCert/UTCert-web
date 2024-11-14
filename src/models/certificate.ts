@@ -31,6 +31,7 @@ export interface Certificate {
   // attachment
   attachmentJson: string; 
   attachmentIpfs: string; 
+  attachmentName: string; 
   
   // mapping to user
   issuer: User; 

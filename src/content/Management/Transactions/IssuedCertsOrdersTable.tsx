@@ -225,6 +225,11 @@ function IssuedCertsOrdersTable() {
     if (certificate.status >= CertificateStatus.Sent) {
       return false;
     }
+
+    if(certificate.contactStatus != ContactStatus.Accepted) {
+      return false; 
+    }
+
     if (certificate.signingType === SigningType.SingleSigning) {
       return certificate.status === CertificateStatus.Signed;
     } else {
@@ -315,30 +320,27 @@ function IssuedCertsOrdersTable() {
     const ipfsGatewayUrl = `https://ipfs.io/ipfs/${certificate.attachmentIpfs}`;
 
     try {
-      enqueueSnackbar('Downloading, please wait...', {variant: 'info'});
+      enqueueSnackbar('Downloading, please wait...', { variant: 'info' });
       const response = await fetch(ipfsGatewayUrl);
       if (!response.ok) {
-        throw new Error('Failed to fetch the file from IPFS');
+        throw new Error('Failed to download file');
       }
 
       const blob = await response.blob();
-      const fileType = blob.type || 'application/octet-stream';
-      const fileName = `downloaded-file.${fileType.split('/')[1] || 'bin'}`;
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = certificate.attachmentName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url); // Clean up the temporary URL
     } catch (error) {
       console.error('Download error:', error);
-      enqueueSnackbar(
-        'Failed to download file. Please check the IPFS hash or try again.',
-        { variant: 'error' }
-      );
+      enqueueSnackbar('Failed to download file, try again.', {
+        variant: 'error'
+      });
     }
   };
 
@@ -434,12 +436,13 @@ function IssuedCertsOrdersTable() {
       if (response.status == HTTP_STATUS.OK) {
         const { data } = response.data;
 
-        const lstCert = (data.items as Certificate[])?.map((x) => ({
+        const lstCert = (data.items as Certificate[])?.map(x => {
+          let attachment = x.attachmentJson ? JSON.parse(x.attachmentJson) : {}; 
+          return {
           ...x,
-          attachmentIpfs: x.attachmentJson
-            ? JSON.parse(x.attachmentJson).ipfsLink
-            : ''
-        }));
+          attachmentIpfs: attachment.ipfsLink ?? "", 
+          attachmentName: attachment.ipfsName ?? ""
+        }});
 
         setData(lstCert);
         setTotalCount(data.totalCount);
@@ -654,15 +657,12 @@ function IssuedCertsOrdersTable() {
         );
         return;
       }
+
       setLoading(true);
       await axiosInstance.delete(`Certificate/${selectedCertifiate.id}`);
       setLoading(false);
+      setData((prevItems) => prevItems.filter(item => item.id !== selectedCertifiate.id));
       enqueueSnackbar('Delete Successful!', { variant: 'success' });
-      setFilters({
-        ...filters,
-        pageNumber: 0,
-        pageSize: 5
-      });
     } catch (error) {
       setLoading(false);
       enqueueSnackbar('An error occurred while deleting the certificate.', {
@@ -771,7 +771,7 @@ function IssuedCertsOrdersTable() {
                   <TableCell padding="checkbox">
                     <Checkbox
                       color="primary"
-                      checked={selectedCertifiates.length === data.length}
+                      checked={selectedCertifiates.length > 0 && selectedCertifiates.length === data.length}
                       onChange={handleSelectAll}
                     />
                   </TableCell>
@@ -847,7 +847,7 @@ function IssuedCertsOrdersTable() {
                         gutterBottom
                         noWrap
                       >
-                        {certificate.receiver.name}
+                        {certificate.receiverName}
                       </Typography>
                     </TableCell>
                     <TableCell align="center">
