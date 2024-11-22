@@ -1,5 +1,5 @@
 import Label from '@/components/Label';
-import { API_URL } from '@/constants/appConstants';
+import { API_URL, PINATA_CLOUD_API } from '@/constants/appConstants';
 import {
   Certificate,
   CertificateMulSign,
@@ -20,6 +20,7 @@ import ListIcon from '@mui/icons-material/List';
 import SendIcon from '@mui/icons-material/Send';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import AttachFileIcon from '@mui/icons-material/AttachFile'; 
+import BlockIcon from '@mui/icons-material/Block'; 
 
 import Loading from '@/components/Loading';
 import { useStore } from '@/contexts/GlobalContext';
@@ -126,6 +127,7 @@ function IssuedCertsOrdersTable() {
 
   const [totalCount, setTotalCount] = useState<number>(0);
   const [openConfirmDelete, setOpenConfirmDelete] = useState<boolean>(false);
+  const [openConfirmBan, setOpenConfirmBan] = useState<boolean>(false);
   const [issuerAddress, setIssuerAddress] = useState<string>();
   const [isResetFilter, setResetFilter] = useState<boolean>(false);
   const { isChangeData, authToken } = useStore();
@@ -151,11 +153,20 @@ function IssuedCertsOrdersTable() {
 
   useEffect(() => {
     const getIssuerAddress = async () => {
+      let address = ""; 
       const wallet = await BrowserWallet.enable('eternl');
-      const [address] = await wallet.getUsedAddresses();
+      const lstUsedAddress= await wallet.getUsedAddresses();
+      if(lstUsedAddress?.length > 0) {
+        address = lstUsedAddress[0];
+      }
+      if(!address) {
+        const lstUnUsedAddress = await wallet.getUnusedAddresses(); 
+        if(lstUnUsedAddress?.length > 0) {
+          address = lstUnUsedAddress[0];
+        }
+      }
       setIssuerAddress(address);
     };
-
     getIssuerAddress();
   }, []);
 
@@ -243,6 +254,10 @@ function IssuedCertsOrdersTable() {
     }
   };
 
+  const isEnableBan = (certificate: Certificate) => {
+    return certificate.status == CertificateStatus.Sent && certificate.issuer.receiveAddress == issuerAddress; 
+  }
+
   const hasPendingSignatures = (certificate: Certificate) => {
     if (certificate.status < CertificateStatus.Signed) {
       return false;
@@ -315,9 +330,20 @@ function IssuedCertsOrdersTable() {
     setSelectedCertificate(null);
   };
 
+  // open confirm ban 
+  const handleOpenConfirmBan = (certificate: Certificate) => {
+    setOpenConfirmBan(true);
+    setSelectedCertificate(certificate);
+  };
+  const handleCloseConfirmBan = () => {
+    setOpenConfirmBan(false);
+    setSelectedCertificate(null);
+  };
+
   // download attachment
   const handleDownloadFile = async (certificate: Certificate) => {
-    const ipfsGatewayUrl = `https://ipfs.io/ipfs/${certificate.attachmentIpfs}`;
+    let gateway = PINATA_CLOUD_API ?? 'https://gold-fast-hamster-132.mypinata.cloud/ipfs/'; 
+    const ipfsGatewayUrl = gateway + certificate.attachmentIpfs;
 
     try {
       enqueueSnackbar('Downloading, please wait...', { variant: 'info' });
@@ -671,6 +697,35 @@ function IssuedCertsOrdersTable() {
     }
   }
 
+  async function handleBanCert() {
+    setOpenConfirmBan(false);
+    try {
+
+      setLoading(true);
+      const response = await fetch(API_URL + 'Certificate/ban-certificate', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify(selectedCertifiate.id)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to send certificate: ' + response.statusText);
+      }
+
+      enqueueSnackbar('Send Successful!', { variant: 'success' });
+      fetchData();
+    } catch (error) {
+      setLoading(false);
+      console.error('Error:', error);
+      enqueueSnackbar('Send Error!', { variant: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // #endregion
   if (isLoading) {
     return <Loading />;
@@ -771,7 +826,10 @@ function IssuedCertsOrdersTable() {
                   <TableCell padding="checkbox">
                     <Checkbox
                       color="primary"
-                      checked={selectedCertifiates.length > 0 && selectedCertifiates.length === data.length}
+                      checked={
+                        selectedCertifiates.length > 0 &&
+                        selectedCertifiates.length === data.length
+                      }
                       onChange={handleSelectAll}
                     />
                   </TableCell>
@@ -927,7 +985,7 @@ function IssuedCertsOrdersTable() {
                                 description="Are you sure you want to delete this certificate? This action cannot be undone."
                                 onConfirm={handleDeleteCert}
                                 onCancel={handleCloseConfirmDelete}
-                              />
+                              />                             
                             </>
                           )}
                         </>
@@ -955,7 +1013,7 @@ function IssuedCertsOrdersTable() {
                           <IconButton
                             sx={{
                               opacity: 0.5,
-                              color: theme.palette.primary.main, 
+                              color: theme.palette.primary.main,
                               cursor: 'default'
                             }}
                             size="small"
@@ -1012,6 +1070,33 @@ function IssuedCertsOrdersTable() {
                           </IconButton>
                         </Tooltip>
                       )}
+
+                      {isEnableBan(certificate) && (
+                        <>
+                          <Tooltip title="Ban" arrow>
+                            <IconButton
+                              sx={{
+                                '&:hover': {
+                                  background: theme.colors.primary.lighter
+                                },
+                                color: theme.palette.primary.main
+                              }}
+                              size="small"
+                              onClick={() => handleOpenConfirmBan(certificate)}
+                            >
+                              <BlockIcon color="error" fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <ConfirmDialog
+                                open={openConfirmBan}
+                                title="Confirm Deletion"
+                                description="Are you sure you want to ban this certificate? This action cannot be undone."
+                                onConfirm={handleBanCert}
+                                onCancel={handleCloseConfirmBan}
+                              />
+                        </>
+                        
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1028,7 +1113,7 @@ function IssuedCertsOrdersTable() {
             onPageChange={handlePageNumberChange}
             onRowsPerPageChange={handlePageSizeChange}
             page={filters.pageNumber}
-            rowsPerPage={5}
+            rowsPerPage={filters.pageSize}
             rowsPerPageOptions={[5, 10, 25, 30]}
           />
         )}

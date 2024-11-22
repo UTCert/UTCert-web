@@ -81,31 +81,109 @@ function DialogViewCerts(props: any) {
         return <></>
     }
     return (
-        <Dialog open={open} onClose={onClose} maxWidth='lg'>
-            <DialogContent style={{ display: 'grid', gridTemplateColumns: '6fr 4fr', alignItems: 'center' }}>
-                <div>
-                    <img src={certificates[currentIndex].imageLink} alt="Ảnh" style={{ maxWidth: "100%", maxHeight: "100%" }} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'auto 2fr', marginLeft: '30px', fontSize: '15px', gap: '5px', backgroundColor: 'Background' }}>
-                    <p style={{ fontWeight: 'bold' }}>CODE:</p>
-                    <p>{certificates[currentIndex].code}</p>
-                    <p style={{ fontWeight: 'bold' }}>ORGANIZATION :</p>
-                    <p>{certificates[currentIndex].issuerName}</p>
-                    <p style={{ fontWeight: 'bold', borderBottom: '1px solid #000', paddingBottom: '5px' }}>DATE RECEIVED:</p>
-                    <p style={{ borderBottom: '1px solid #000' }}>{certificates[currentIndex].receivedDate ?
-                         new Date(certificates[currentIndex].receivedDate).toLocaleDateString('en-GB') : ''}</p>
-                    <p style={{ fontWeight: 'bold', marginTop: '0px' }}>RECEIVED IDENTITY:</p>
-                    <p style={{ marginTop: '0px' }}>{certificates[currentIndex].receiverIdentityNumber}</p>
-                    <p style={{ fontWeight: 'bold' }}>RECEIVED NAME:</p>
-                    <p>{certificates[currentIndex].receiverName}</p>
-                </div>
+      <Dialog open={open} onClose={onClose} maxWidth="lg">
+        <DialogContent
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '6fr 4fr',
+            alignItems: 'center'
+          }}
+        >
+          <div>
+            <img
+              src={certificates[currentIndex].imageLink}
+              alt="Ảnh"
+              style={{ maxWidth: '100%', maxHeight: '100%' }}
+            />
+          </div>
+          <div
+            style={{
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              height: '100%',
+              fontSize: '15px',
+              backgroundColor: 'Background'
+            }}
+          >
+            <div
+              style={{
+                textAlign: 'center',
+                color: 'red',
+                fontWeight: 'bold',
+                fontSize: '18px'
+              }}
+            >
+              {certificates[currentIndex].status == CertificateStatus.Banned
+                ? 'This certificate is illegal'
+                : ''}
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'auto 2fr',
+                marginLeft: '30px',
+                fontSize: '15px',
+                gap: '5px',
+                backgroundColor: 'Background'
+              }}
+            >
+              <p style={{ fontWeight: 'bold' }}>CODE:</p>
+              <p>{certificates[currentIndex].code}</p>
+              <p style={{ fontWeight: 'bold' }}>ORGANIZATION :</p>
+              <p>{certificates[currentIndex].issuerName}</p>
+              <p
+                style={{
+                  fontWeight: 'bold',
+                  borderBottom: '1px solid #000',
+                  paddingBottom: '5px'
+                }}
+              >
+                DATE RECEIVED:
+              </p>
+              <p style={{ borderBottom: '1px solid #000' }}>
+                {certificates[currentIndex].receivedDate
+                  ? new Date(
+                      certificates[currentIndex].receivedDate
+                    ).toLocaleDateString('en-GB')
+                  : ''}
+              </p>
+              <p style={{ fontWeight: 'bold', marginTop: '0px' }}>
+                RECEIVED IDENTITY:
+              </p>
+              <p style={{ marginTop: '0px' }}>
+                {certificates[currentIndex].receiverIdentityNumber}
+              </p>
+              <p style={{ fontWeight: 'bold' }}>RECEIVED NAME:</p>
+              <p>{certificates[currentIndex].receiverName}</p>
+            </div>
+            <div
+              style={{
+                textAlign: 'center',
+                color: 'red',
+                fontWeight: 'bold',
+                fontSize: '18px'
+              }}
+            >
+              {certificates[currentIndex].status == CertificateStatus.Banned
+                ? 'This certificate is illegal'
+                : ''}
+            </div>
+          </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
-                    <Button onClick={handlePrevClick}>Prev</Button>
-                    <Button onClick={handleNextClick}>Next</Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginTop: '10px'
+            }}
+          >
+            <Button onClick={handlePrevClick}>Prev</Button>
+            <Button onClick={handleNextClick}>Next</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     );
 }
 
@@ -119,7 +197,8 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
     const [openQr, setOpenQr] = useState<boolean>(false);
     const [selectedCertificates, setSelectedCertificates] = useState<Certificate[]>([]);
     const [qrCode, setQrCode] = useState('');
-    const [openConfirmDelete, setOpenConfirmDelete] = useState(false)
+    const [openConfirmDelete, setOpenConfirmDelete] = useState(false);
+    const [openConfirmBan, setOpenConfirmBan] = useState<boolean>(false);
     const [issuerAddress, setIssuerAddress] = useState<string>();
     const [isLoading, setLoading] = useState<boolean>(false);
 
@@ -205,56 +284,25 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
       await wallet.submitTx(signedTx);
       return signedTx;
     };
-    const handleMultipleSignCert = async (certificate: Certificate): Promise<string> => {
-      const signerLst = JSON.parse(
-        certificate.mulSignJson
-      ) as CertificateMulSign[];
-      let unsignedTx = '';
 
-      const wallet = await BrowserWallet.enable('eternl');
-      const tx = new Transaction({ initiator: wallet });
+    const handleBanSelectedCertificates = async () => {
+        try {
+            let inputs = selectedCertificates.filter(x => isEnableBan(x)).map(x => x.id);
+            if(inputs.length > 0) {
+                setLoading(true);
+                await axiosInstance.post('/Certificate/ban-multiple-certificates', inputs);
+                setLoading(false);
+                enqueueSnackbar('Ban Successful!', { variant: 'success' });
+                loadData(); 
+            }
 
-      if (certificate.issuer.receiveAddress == issuerAddress) {
-        const forgingScript = ForgeScript.withOneSignature(issuerAddress);
-        const assetMetadata: AssetMetadata = {
-          certificateName: certificate.name,
-          classification: certificate.classification,
-          image: certificate.ipfsLink,
-          mediaType: 'image/jpg',
-          receivedName: certificate.receiver.name,
-          yearOfGraduation: certificate.graduationYear,
-          identity: certificate.receiverIdentityNumber
-        };
-        const asset: Mint = {
-          assetName: `${slugify(certificate.receiver.name)}-${
-            certificate.receiverIdentityNumber
-          }`,
-          assetQuantity: '1',
-          metadata: assetMetadata,
-          label: '721',
-          recipient: issuerAddress
-        };
-        tx.mintAsset(forgingScript, asset);
-        const signerAddresses =
-          signerLst?.map((x) => x.issuerAddress).filter(Boolean) || [];
-        tx.setRequiredSigners([issuerAddress, ...signerAddresses]);
-        unsignedTx = await tx.build();
-      } else {
-        unsignedTx = certificate.signHash;
-      }
-      const signedTx = await wallet.signTx(unsignedTx, true);
-
-      signerLst.forEach((signer) => {
-        if (signer.issuerAddress === issuerAddress) {
-          signer.isSigned = true;
+        } catch (error) {
+            setLoading(false);
+            console.error('Ban error:', error);
+            enqueueSnackbar('Ban Error!', { variant: 'error' });
         }
-      });
-      if (signerLst.every((signer) => signer.isSigned)) {
-        await wallet.submitTx(signedTx);
-      }
-      return signedTx;
-    };
-
+    }
+    
     // handle multiple send certs
     const handleMultipleSendCerts = async () => {
         try {
@@ -335,6 +383,9 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
         );
       }
     };
+    const isEnableBan = (certificate: Certificate) => {
+        return certificate.status == CertificateStatus.Sent && certificate.issuer.receiveAddress == issuerAddress; 
+    }
 
     // delete certs
     const handleOpenConfirmDelete = () => {
@@ -343,6 +394,13 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
     const handleCloseConfirmDelete = () => {
         setOpenConfirmDelete(false);
     }
+    const handleOpenConfirmBan = () => {
+      setOpenConfirmBan(true);
+    };
+    const handleCloseConfirmBan = () => {
+      setOpenConfirmBan(false);
+    };
+
     const handleDeleteSelectedCertificates = async () => {
         setOpenConfirmDelete(false);
         try {
@@ -364,6 +422,56 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
         }
     }
 
+    const handleMultipleSignCert = async (certificate: Certificate): Promise<string> => {
+        const signerLst = JSON.parse(
+          certificate.mulSignJson
+        ) as CertificateMulSign[];
+        let unsignedTx = '';
+  
+        const wallet = await BrowserWallet.enable('eternl');
+        const tx = new Transaction({ initiator: wallet });
+  
+        if (certificate.issuer.receiveAddress == issuerAddress) {
+          const forgingScript = ForgeScript.withOneSignature(issuerAddress);
+          const assetMetadata: AssetMetadata = {
+            certificateName: certificate.name,
+            classification: certificate.classification,
+            image: certificate.ipfsLink,
+            mediaType: 'image/jpg',
+            receivedName: certificate.receiver.name,
+            yearOfGraduation: certificate.graduationYear,
+            identity: certificate.receiverIdentityNumber
+          };
+          const asset: Mint = {
+            assetName: `${slugify(certificate.receiver.name)}-${
+              certificate.receiverIdentityNumber
+            }`,
+            assetQuantity: '1',
+            metadata: assetMetadata,
+            label: '721',
+            recipient: issuerAddress
+          };
+          tx.mintAsset(forgingScript, asset);
+          const signerAddresses =
+            signerLst?.map((x) => x.issuerAddress).filter(Boolean) || [];
+          tx.setRequiredSigners([issuerAddress, ...signerAddresses]);
+          unsignedTx = await tx.build();
+        } else {
+          unsignedTx = certificate.signHash;
+        }
+        const signedTx = await wallet.signTx(unsignedTx, true);
+  
+        signerLst.forEach((signer) => {
+          if (signer.issuerAddress === issuerAddress) {
+            signer.isSigned = true;
+          }
+        });
+        if (signerLst.every((signer) => signer.isSigned)) {
+          await wallet.submitTx(signedTx);
+        }
+        return signedTx;
+      };
+
     // View certs
     const handleViewCerts = () => {
         setOpenCerts(true);
@@ -375,8 +483,6 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
     // Qrcode
     const handleGenQrCertificateSelecteds = () => {
         let stakeId: string = GetCookie('stakeId')
-        let lstCert = cloneDeep(selectedCertificates);
-        lstCert.map(certificate => (stakeId += ',' + certificate.code))
         setQrCode('https://utcert.vercel.app/?q=' + encryptVigenere(stakeId, 'KEYWORD'));
         setOpenQr(true);
     }
@@ -466,6 +572,20 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
                             Send
                         </Button>
                     </Tooltip>}
+                    {selectedCertificates.filter(x => isEnableBan(x)).length > 0 &&
+                        <Tooltip 
+                            title={`${selectedCertificates.filter(x => isEnableBan(x)).length} certificates banning`} 
+                            arrow
+                        >
+                        <ButtonError
+                                sx={{ ml: 1 }}
+                                startIcon={<DeleteIcon />}
+                                variant="contained"
+                                onClick={() => handleOpenConfirmBan()}
+                            >
+                                Ban
+                            </ButtonError>
+                    </Tooltip>}
                     {selectedCertificates.filter(x => x.status == CertificateStatus.Draft).length > 0 && 
                         <Tooltip   
                         title={`${selectedCertificates.filter(x => x.status == CertificateStatus.Draft).length} certificates deleting`} 
@@ -540,6 +660,27 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
                 <DialogActions>
                     <Button onClick={handleCloseConfirmDelete}>Disagree</Button>
                     <Button onClick={() => handleDeleteSelectedCertificates()} autoFocus>
+                        Agree
+                    </Button>
+                </DialogActions>
+            </Dialog>
+            <Dialog
+                open={openConfirmBan}
+                onClose={handleCloseConfirmBan}
+                aria-labelledby="alert-dialog-title"
+                aria-describedby="alert-dialog-description"
+            >
+                <DialogTitle id="alert-dialog-title">
+                    {"Are you sure to ban this certificates?"}
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText id="alert-dialog-description">
+                        You can't undo this operation
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseConfirmBan}>Disagree</Button>
+                    <Button onClick={() => handleBanSelectedCertificates()} autoFocus>
                         Agree
                     </Button>
                 </DialogActions>

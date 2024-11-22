@@ -301,6 +301,10 @@ function DialogCrud({ open, onClose }) {
 
     // Validate required
     for (const [key, value] of Object.entries(formData)) {
+      // Ignore tracking these keys
+      if(key === "signerAddress" || key == "attachment" || key == "attachmentName") {
+        continue; 
+      }
       if (!value) {
         isValid = false;
         error[key] = 'Field is required!';

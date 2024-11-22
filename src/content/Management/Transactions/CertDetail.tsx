@@ -1,6 +1,6 @@
 import React from 'react';
 import { Dialog, DialogContent } from '@mui/material';
-import { Certificate, } from '@/models/certificate';
+import { Certificate, CertificateStatus, } from '@/models/certificate';
 interface CertDetailProps {
   open: boolean;
   onClose: () => void;
@@ -40,27 +40,64 @@ function CertDetail(props: CertDetailProps) {
       >
         <div>
           <img
-           src={`https://gateway.pinata.cloud/ipfs/${selectedCertificate.ipfsLink}`}
+            src={`https://gateway.pinata.cloud/ipfs/${selectedCertificate.ipfsLink}`}
             alt="Certificate"
             style={{ maxWidth: '100%', maxHeight: '100%' }}
           />
         </div>
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'auto 2fr',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            height: '100%',
             marginLeft: '30px',
             fontSize: '15px',
-            gap: '5px',
             backgroundColor: 'Background'
           }}
         >
-          {certificateDetails.map(({ label, value, style }) => (
-            <React.Fragment key={label}>
-              <p style={{ fontWeight: 'bold', ...style }}>{label}</p>
-              <p style={style}>{value}</p>
-            </React.Fragment>
-          ))}
+          <div
+            style={{
+              textAlign: 'center',
+              color: 'red',
+              fontWeight: 'bold',
+              fontSize: '18px'
+            }}
+          >
+            {selectedCertificate.status == CertificateStatus.Banned
+              ? 'This certificate is illegal'
+              : ''}
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'auto 2fr',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+          >
+            {certificateDetails.map(({ label, value, style }) => (
+              <React.Fragment key={label}>
+                <p style={{ fontWeight: 'bold', ...style }}>{label}</p>
+                <p style={style}>{value}</p>
+              </React.Fragment>
+            ))}
+          </div>
+
+          <div
+            style={{
+              textAlign: 'center',
+              color: 'red',
+              fontWeight: 'bold',
+              fontSize: '18px'
+            }}
+          >
+            {selectedCertificate.status == CertificateStatus.Banned
+              ? 'This certificate is illegal'
+              : ''}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

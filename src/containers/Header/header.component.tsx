@@ -5,6 +5,7 @@ import { ChevronRight } from '@mui/icons-material';
 import { Dialog, DialogContent, TextField, Button } from '@mui/material';
 import { useRouter } from 'next/router';
 import { SnackbarProvider, useSnackbar } from 'notistack';
+import { API_URL, PINATA_CLOUD_API } from '@/constants/appConstants';
 
 
 function hexToText(hexString) {
@@ -33,6 +34,37 @@ function SimpleDialog(props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [inputValue, setInputValue] = useState('');
   const [isValid, setIsValid] = useState(true);
+  const [lstCertChecked, setLstCertChecked] = useState({})
+
+  useEffect(() => {
+    const checkCertLegal = async () => {
+      const { onchain_metadata } = certificates[currentIndex] || {};
+      const identity = onchain_metadata?.identity;
+    
+      if (!identity || lstCertChecked[identity]) {
+        return; 
+      }
+    
+      try {
+        const response = await fetch(`${API_URL}Certificate/check-legal/${identity}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+    
+        const isLegal = await response.json();
+        setLstCertChecked(prevState => ({
+          ...prevState,
+          [identity]: isLegal ? 1 : -1,
+        }));
+      } catch (error) {
+        console.error(`Error checking certificate legal status for identity ${identity}:`, error.message);
+      }
+    };
+  
+    checkCertLegal();
+  }, [currentIndex]);
 
   const handleInputChange = (event) => {
     const inputValue = event.target.value;
@@ -66,60 +98,97 @@ function SimpleDialog(props) {
         <div className="container">
           <div className="image-container">
             <img className="image-show"
-              src={certificates[currentIndex].onchain_metadata.image.replace("ipfs://", "https://ipfs.io/ipfs/")}
+              src={certificates[currentIndex].onchain_metadata.image.replace("ipfs://", PINATA_CLOUD_API)}
               alt="Ảnh"
             />
           </div>
-          <div className="content-container" style={{ display: 'grid', gridTemplateColumns: 'auto 2fr', marginLeft: '30px', fontSize: '15px', gap: '5px', backgroundColor: 'white' }}>
-            <p style={{ fontWeight: 'bold' }}>Code:</p>
-            <p>{hexToText(certificates[currentIndex].asset_name)}</p>
-            <p style={{ fontWeight: 'bold' }}>AssetId:</p>
-            <a
-              href={`https://preprod.cexplorer.io/asset/${certificates[currentIndex].asset}`}
+          <div
+            style={{
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              height: '100%',
+              fontSize: '15px',
+              backgroundColor: 'Background'
+            }}
+          >
+            <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                textDecoration: 'none',
-                color: 'black',
+                textAlign: 'center',
+                color: 'red',
+                fontWeight: 'bold',
+                fontSize: '18px'
               }}
-              target="_blank" rel="noopener noreferrer"
             >
-              <span style={{ marginRight: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {certificates[currentIndex].asset.substring(0, 7) + '.....' + certificates[currentIndex].asset.substring(certificates[currentIndex].asset.length - 5)}
-              </span>
-              <ChevronRight style={{ fontSize: '20px' }} />
-            </a>
-            <p style={{ fontWeight: 'bold' }}>PolicyId:</p>
-            <a
-              href={`https://preprod.cexplorer.io/policy/${certificates[currentIndex].policy_id}`}
+              {lstCertChecked[certificates[currentIndex].onchain_metadata.identity] == -1
+                ? 'This certificate is illegal'
+                : ''}
+            </div>
+            <div className="content-container" style={{ display: 'grid', gridTemplateColumns: 'auto 2fr', marginLeft: '30px', fontSize: '15px', gap: '5px', backgroundColor: 'white' }}>
+              <p style={{ fontWeight: 'bold' }}>Code:</p>
+              <p>{hexToText(certificates[currentIndex].asset_name)}</p>
+              <p style={{ fontWeight: 'bold' }}>AssetId:</p>
+              <a
+                href={`https://preprod.cexplorer.io/asset/${certificates[currentIndex].asset}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  textDecoration: 'none',
+                  color: 'black',
+                }}
+                target="_blank" rel="noopener noreferrer"
+              >
+                <span style={{ marginRight: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {certificates[currentIndex].asset.substring(0, 7) + '.....' + certificates[currentIndex].asset.substring(certificates[currentIndex].asset.length - 5)}
+                </span>
+                <ChevronRight style={{ fontSize: '20px' }} />
+              </a>
+              <p style={{ fontWeight: 'bold' }}>PolicyId:</p>
+              <a
+                href={`https://preprod.cexplorer.io/policy/${certificates[currentIndex].policy_id}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  textDecoration: 'none',
+                  color: 'black',
+                }}
+                target="_blank" rel="noopener noreferrer"
+              >
+                <span style={{ marginRight: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {certificates[currentIndex].policy_id.substring(0, 7) + '.....' + certificates[currentIndex].policy_id.substring(certificates[currentIndex].policy_id.length - 5)}
+                </span>
+                <ChevronRight style={{ fontSize: '20px' }} />
+              </a>
+              <p style={{ fontWeight: 'bold' }}>Received Identity:</p>
+              <p>{certificates[currentIndex].onchain_metadata.identity || '.....'}</p>
+              <p style={{ fontWeight: 'bold' }}>Received name:</p>
+              <p>{certificates[currentIndex].onchain_metadata.receivedName}</p>
+              <TextField
+                id="outlined-input"
+                label="Check PolicyId"
+                value={inputValue}
+                onChange={handleInputChange}
+                error={!isValid}
+                helperText={!isValid ? 'PolicyId is not correct!' : 'PolicyId is correct!'}
+                style={{ gridColumn: 'span 2' }}
+                color='success'
+              />
+            </div>
+            <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                textDecoration: 'none',
-                color: 'black',
+                textAlign: 'center',
+                color: 'red',
+                fontWeight: 'bold',
+                fontSize: '18px'
               }}
-              target="_blank" rel="noopener noreferrer"
             >
-              <span style={{ marginRight: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {certificates[currentIndex].policy_id.substring(0, 7) + '.....' + certificates[currentIndex].policy_id.substring(certificates[currentIndex].policy_id.length - 5)}
-              </span>
-              <ChevronRight style={{ fontSize: '20px' }} />
-            </a>
-            <p style={{ fontWeight: 'bold' }}>Received Identity:</p>
-            <p>{certificates[currentIndex].onchain_metadata.identity || '.....'}</p>
-            <p style={{ fontWeight: 'bold' }}>Received name:</p>
-            <p>{certificates[currentIndex].onchain_metadata.receivedName}</p>
-            <TextField
-              id="outlined-input"
-              label="Check PolicyId"
-              value={inputValue}
-              onChange={handleInputChange}
-              error={!isValid}
-              helperText={!isValid ? 'PolicyId is not correct!' : 'PolicyId is correct!'}
-              style={{ gridColumn: 'span 2' }}
-              color='success'
-            />
+              {lstCertChecked[certificates[currentIndex].onchain_metadata.identity] == -1
+                ? 'This certificate is illegal'
+                : ''}
+            </div>
           </div>
+          
           <div className="button-container" style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
             <Button onClick={handlePrevClick}>Prev</Button>
             <Button onClick={handleNextClick}>Next</Button>
@@ -252,7 +321,7 @@ const Search = () => {
 
     const temp = decryptVigenere(timkiem, 'KEYWORD').toLowerCase().split(',')
     let asssetIds = [];
-    for (let index = 1; index < temp.length; index++) {
+    for (let index = 0; index < temp.length; index++) {
       asssetIds.push(textToHex(temp[index]))
     }
     const projectId = 'preproddZ8hPQ8b90t4TcBfnnnx7CPIJ4omEG1H';
@@ -264,26 +333,31 @@ const Search = () => {
       },
     })
       .then((response) => response.json())
-
       .then((data) => {
         if (data.status_code) {
           enqueueSnackbar("Certificate not found!", { variant: 'error' })
         } else {
           let result = [];
           let promises = data.map(units => {
-            if (compareLastDigits(units.unit, asssetIds)) {
+            // if (compareLastDigits(units.unit, asssetIds)) {
               return fetch('https://cardano-preprod.blockfrost.io/api/v0/assets/' + units.unit, {
                 headers: {
                   project_id: projectId,
                 },
               })
                 .then(response1 => response1.json());
-            }
+            // }
           });
 
           Promise.all(promises)
             .then(data1 => {
+              
               result = data1.filter(Boolean); // Loại bỏ các giá trị null hoặc undefined từ mảng data1
+              result.forEach(item => {
+                if (item.onchain_metadata && item.onchain_metadata.image && !item.onchain_metadata.image.startsWith("ipfs://")) {
+                  item.onchain_metadata.image = "ipfs://" + item.onchain_metadata.image;
+                }
+              });
               setCertificates(result)
 
               setOpen(true);
