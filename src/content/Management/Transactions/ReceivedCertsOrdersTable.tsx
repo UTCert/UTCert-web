@@ -297,7 +297,7 @@ function ReceivedCertsOrdersTable() {
               </div>
             </Box>
           }
-          title="Issued Certs"
+          title="Received Certs"
         />
       )}
       <Divider />

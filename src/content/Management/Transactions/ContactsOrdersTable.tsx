@@ -41,6 +41,7 @@ import styles from '../../../../styles/IssuedCerts.module.css';
 import axiosInstance from '@/lib/axiosIntance';
 import { HTTP_STATUS } from '@/enum/HTTP_SATUS';
 import { useStore } from '@/contexts/GlobalContext';
+import Loading from '@/components/Loading';
 
 interface Filters {
   contactName?: string;
@@ -231,6 +232,7 @@ function ContactsOrdersTable() {
         setLoading(false);
         if(data.success) {
             enqueueSnackbar('Accept contact successful!', { variant: 'success' });
+            close
         }
         fetchData(); 
     } catch (error) {
@@ -246,243 +248,234 @@ function ContactsOrdersTable() {
         if(data.success) {
             enqueueSnackbar('Delete contact successful!', { variant: 'success' });
         }
+        handleCloseDialog();
     } catch (error) {
         setLoading(false); 
         enqueueSnackbar('Delete contact error!', { variant: 'error' });
+        handleCloseDialog();
     }
   }
   
 
   return (
-    <Card>
-        <CardHeader
-          action={
-            <Box width={350}>
-              <div className={styles.box_container}>
-                <div
-                  className={`${styles.box_icon} ${
-                    isLoading ? styles.rotate : ''
-                  }`}
-                >
-                  <FaSpinner
-                    size={22}
-                    className={`${styles.spinner} ${
-                      isLoading ? styles.rotate : ''
-                    }`}
-                    onClick={fetchData}
-                    style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }} // Change cursor style when isLoading is true
-                  />
-                </div>
-                <div className={styles.box_filter}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel>Status</InputLabel>
-                    <Select
-                      value={filters.contactStatus || 'all'}
-                      onChange={(e) =>
-                        handleFilterChange('contactStatus', e.target.value)
-                      }
-                      label="Status"
-                      autoWidth
-                    >
-                      {statusOptions.map((statusOption) => (
-                        <MenuItem key={statusOption.id} value={statusOption.id}>
-                          {statusOption.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel>Contact Name</InputLabel>
-                    <Input
-                       onChange={(e) =>
-                            handleFilterChange('contactName', e.target.value)
+    <>
+      {isLoading && <Loading />}
+      <Card>
+          <CardHeader
+            action={
+              <Box width={350}>
+                <div className={styles.box_container}>
+                  <div className={styles.box_filter}>
+                    <FormControl fullWidth variant="outlined">
+                      <InputLabel>Status</InputLabel>
+                      <Select
+                        value={filters.contactStatus || 'all'}
+                        onChange={(e) =>
+                          handleFilterChange('contactStatus', e.target.value)
                         }
-                      placeholder="Enter Certificate Name"
-                    />
-                  </FormControl>
+                        label="Status"
+                        autoWidth
+                      >
+                        {statusOptions.map((statusOption) => (
+                          <MenuItem key={statusOption.id} value={statusOption.id}>
+                            {statusOption.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <FormControl fullWidth variant="outlined">
+                      <InputLabel>Contact Name</InputLabel>
+                      <Input
+                         onChange={(e) =>
+                              handleFilterChange('contactName', e.target.value)
+                          }
+                        placeholder="Enter Certificate Name"
+                      />
+                    </FormControl>
+                  </div>
                 </div>
-              </div>
-            </Box>
-          }
-          title="Contacts"
-        />
-      <Divider />
-      <TableContainer>
-      {isTableLoading ? (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: '400px',
-              flexDirection: 'column'
-            }}
-          >
-            <CircularProgress
-              size={60}
-              thickness={5}
-              style={{ color: '#3f51b5' }}
-            />
-            <Typography variant="h6" style={{ marginTop: '16px' }}>
-              Loading data, please wait...
-            </Typography>
-          </div>
-        ) : (
-       <Fade in={!isTableLoading} timeout={500}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  {columns.map((column) => (
-                    <TableCell
-                      key={column.key}
-                      onClick={() => handleSort(column)}
-                      style={{ cursor: 'pointer' }}
-                      align={
-                        column.align as
-                          | 'left'
-                          | 'center'
-                          | 'right'
-                          | 'justify'
-                          | 'inherit'
-                      }
-                    >
-                      {column.name}
-                      {column.sort === 'asc' && <MdArrowDownward />}
-                      {column.sort === 'desc' && <MdArrowUpward />}
-                    </TableCell>
-                  ))}
-                  <TableCell align='center'>Status</TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {data.map((contact, index) => {
-                  return (
-                    <TableRow hover key={contact.id}>
-                      <TableCell align='center'>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {filters.pageSize * filters.pageNumber + index + 1}
-                        </Typography>
+              </Box>
+            }
+            title="Contacts"
+          />
+        <Divider />
+        <TableContainer>
+        {isTableLoading ? (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '400px',
+                flexDirection: 'column'
+              }}
+            >
+              <CircularProgress
+                size={60}
+                thickness={5}
+                style={{ color: '#3f51b5' }}
+              />
+              <Typography variant="h6" style={{ marginTop: '16px' }}>
+                Loading data, please wait...
+              </Typography>
+            </div>
+          ) : (
+         <Fade in={!isTableLoading} timeout={500}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    {columns.map((column) => (
+                      <TableCell
+                        key={column.key}
+                        onClick={() => handleSort(column)}
+                        style={{ cursor: 'pointer' }}
+                        align={
+                          column.align as
+                            | 'left'
+                            | 'center'
+                            | 'right'
+                            | 'justify'
+                            | 'inherit'
+                        }
+                      >
+                        {column.name}
+                        {column.sort === 'asc' && <MdArrowDownward />}
+                        {column.sort === 'desc' && <MdArrowUpward />}
                       </TableCell>
-                      <TableCell align='left'>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                          noWrap
-                        >
-                          {contact.contactName}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align='center'>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          gutterBottom
-                        >
-                          {new Date(contact.createdDate).toLocaleDateString(
-                            'en-GB'
-                          )}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="text.primary"
-                          align="right"
-                          gutterBottom
-                          noWrap
-                        >
-                          {getStatusLabel(contact.contactStatus)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        {contact.contactStatus == ContactStatus.Pending &&
-                        contact.receiverId == user.id && 
-                           (
-                            <Tooltip title="Accept" arrow>
+                    ))}
+                    <TableCell align='center'>Status</TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {data.map((contact, index) => {
+                    return (
+                      <TableRow hover key={contact.id}>
+                        <TableCell align='center'>
+                          <Typography
+                            variant="body1"
+                            fontWeight="bold"
+                            color="text.primary"
+                            gutterBottom
+                            noWrap
+                          >
+                            {filters.pageSize * filters.pageNumber + index + 1}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align='left'>
+                          <Typography
+                            variant="body1"
+                            fontWeight="bold"
+                            color="text.primary"
+                            gutterBottom
+                            noWrap
+                          >
+                            {contact.contactName}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align='center'>
+                          <Typography
+                            variant="body1"
+                            fontWeight="bold"
+                            color="text.primary"
+                            gutterBottom
+                          >
+                            {new Date(contact.createdDate).toLocaleDateString(
+                              'en-GB'
+                            )}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography
+                            variant="body1"
+                            fontWeight="bold"
+                            color="text.primary"
+                            align="right"
+                            gutterBottom
+                            noWrap
+                          >
+                            {getStatusLabel(contact.contactStatus)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          {contact.contactStatus == ContactStatus.Pending &&
+                          contact.receiverId == user.id && 
+                             (
+                              <Tooltip title="Accept" arrow>
+                                <IconButton
+                                  sx={{
+                                    '&:hover': {
+                                      background: theme.colors.primary.lighter
+                                    },
+                                    color: theme.palette.primary.main
+                                  }}
+                                  color="inherit"
+                                  size="small"
+                                  onClick={() =>
+                                      handleAccept(contact)
+                                    }
+                                >
+                                  <HandshakeIcon fontSize="medium"  />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          {contact.contactStatus == ContactStatus.Accepted && (
+                            <Tooltip title="Delete" arrow>
                               <IconButton
                                 sx={{
                                   '&:hover': {
-                                    background: theme.colors.primary.lighter
+                                    background: theme.colors.error.lighter
                                   },
-                                  color: theme.palette.primary.main
+                                  color: theme.palette.error.main
                                 }}
                                 color="inherit"
                                 size="small"
-                                onClick={() =>
-                                    handleAccept(contact)
-                                  }
+                                onClick={() => handleConfirmDelete(contact)}
                               >
-                                <HandshakeIcon fontSize="medium"  />
+                                <DeleteTwoToneIcon fontSize="medium" />
                               </IconButton>
                             </Tooltip>
                           )}
-                        {contact.contactStatus == ContactStatus.Accepted && (
-                          <Tooltip title="Delete" arrow>
-                            <IconButton
-                              sx={{
-                                '&:hover': {
-                                  background: theme.colors.error.lighter
-                                },
-                                color: theme.palette.error.main
-                              }}
-                              color="inherit"
-                              size="small"
-                              onClick={() => handleConfirmDelete(contact)}
-                            >
-                              <DeleteTwoToneIcon fontSize="medium" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-       </Fade> )}
-      </TableContainer>
-      <Box p={2}>
-        <TablePagination
-          component="div"
-          count={totalCount}
-          onPageChange={handlePageNumberChange}
-          onRowsPerPageChange={handlePageSizeChange}
-          page={filters.pageNumber}
-          rowsPerPage={filters.pageSize}
-          rowsPerPageOptions={[5, 10, 25, 30]}
-        />
-      </Box>
-      <Dialog
-        open={openDialog.isOpen}
-        onClose={() => setOpenDialog({ isOpen: false, type: '' })}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-      >
-        <DialogTitle id="alert-dialog-title">
-          {'Are you sure to delete friend?'}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText id="alert-dialog-description">
-            You can't undo this operation
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => handleCloseDialog()}>Disagree</Button>
-          <Button autoFocus onClick={() => handleDelete(selectedContact)}>Agree</Button>
-        </DialogActions>
-      </Dialog>
-    </Card>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+         </Fade> )}
+        </TableContainer>
+        <Box p={2}>
+          <TablePagination
+            component="div"
+            count={totalCount}
+            onPageChange={handlePageNumberChange}
+            onRowsPerPageChange={handlePageSizeChange}
+            page={filters.pageNumber}
+            rowsPerPage={filters.pageSize}
+            rowsPerPageOptions={[5, 10, 25, 30]}
+          />
+        </Box>
+        <Dialog
+          open={openDialog.isOpen}
+          onClose={() => setOpenDialog({ isOpen: false, type: '' })}
+          aria-labelledby="alert-dialog-title"
+          aria-describedby="alert-dialog-description"
+        >
+          <DialogTitle id="alert-dialog-title">
+            {'Are you sure to delete friend?'}
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText id="alert-dialog-description">
+              You can't undo this operation
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => handleCloseDialog()}>Disagree</Button>
+            <Button autoFocus onClick={() => handleDelete(selectedContact)}>Agree</Button>
+          </DialogActions>
+        </Dialog>
+      </Card>
+    </>
   );
 }
 
