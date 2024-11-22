@@ -1,4 +1,4 @@
-import { Certificate } from '@/models/certificate';
+import { Certificate, CertificateStatus } from '@/models/certificate';
 import styles from '../../../../styles/IssuedCerts.module.css';
 
 import {
@@ -35,6 +35,7 @@ import axiosInstance from '@/lib/axiosIntance';
 import { HTTP_STATUS } from '@/enum/HTTP_SATUS';
 import CertDetail from './CertDetail';
 import { enqueueSnackbar } from 'notistack';
+import Label from '@/components/Label';
 
 interface Filters {
   status?: string;
@@ -50,7 +51,8 @@ const columns = [
     { key: 'name', name: 'Certificate Name', sort: '', isSort: true, align: 'left'},
     { key: 'yearOfGraduation', name: 'Graduation Year', sort: '', isSort: true, align: 'center' },
     { key: 'issuerName', name: 'Organization Name', sort: '', isSort: true, align: 'left' },
-    { key: 'receivedDate', name: 'Received Date', sort: '', isSort: true , align: 'center'}
+    { key: 'receivedDate', name: 'Received Date', sort: '', isSort: true , align: 'center'}, 
+    {key: 'status', name: 'Status', isSort: false, align: 'center'},
 ];
 
 function ReceivedCertsOrdersTable() {
@@ -374,7 +376,7 @@ function ReceivedCertsOrdersTable() {
                           value={isSelectedCert}
                         />
                       </TableCell>
-                      <TableCell align='center'>
+                      <TableCell align="center">
                         <Typography
                           variant="body1"
                           fontWeight="bold"
@@ -385,7 +387,7 @@ function ReceivedCertsOrdersTable() {
                           {certificate.code}
                         </Typography>
                       </TableCell>
-                      <TableCell align='left'>
+                      <TableCell align="left">
                         <Typography
                           variant="body1"
                           fontWeight="bold"
@@ -442,6 +444,14 @@ function ReceivedCertsOrdersTable() {
                           ).toLocaleDateString('en-GB')}
                         </Typography>
                       </TableCell>
+                      <TableCell align="center">
+                        {certificate.status === CertificateStatus.Sent && (
+                          <Label color="info">Legal</Label>
+                        )}
+                        {certificate.status === CertificateStatus.Banned && (
+                          <Label color="error">Banner</Label>
+                        )}
+                      </TableCell>
                       <TableCell align="right">
                         <Tooltip title="View" arrow>
                           <IconButton
@@ -459,21 +469,21 @@ function ReceivedCertsOrdersTable() {
                           </IconButton>
                         </Tooltip>
                         {certificate.attachmentIpfs && (
-                        <Tooltip title="Download attachment" arrow>
-                          <IconButton
-                            sx={{
-                              '&:hover': {
-                                background: theme.colors.info.lighter
-                              },
-                              color: theme.palette.info.main
-                            }}
-                            size="small"
-                            onClick={() => handleDownloadFile(certificate)}
-                          >
-                            <AttachFileIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
+                          <Tooltip title="Download attachment" arrow>
+                            <IconButton
+                              sx={{
+                                '&:hover': {
+                                  background: theme.colors.info.lighter
+                                },
+                                color: theme.palette.info.main
+                              }}
+                              size="small"
+                              onClick={() => handleDownloadFile(certificate)}
+                            >
+                              <AttachFileIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

@@ -177,7 +177,8 @@ function IssuedCertsOrdersTable() {
       1: { text: 'Draft', color: 'secondary' },
       2: { text: 'Signed', color: 'primary' },
       3: { text: 'Sent', color: 'success' },
-      4: { text: 'Banned', color: 'error' }
+      4: { text: 'Banned', color: 'error' }, 
+      5: { text: 'Pending', color: 'info'}
     };
 
     const { text, color } = statusMap[status];
@@ -712,10 +713,10 @@ function IssuedCertsOrdersTable() {
         body: JSON.stringify(selectedCertifiate.id)
       });
       if (!response.ok) {
-        throw new Error('Failed to send certificate: ' + response.statusText);
+        throw new Error('Failed to Ban certificate: ' + response.statusText);
       }
 
-      enqueueSnackbar('Send Successful!', { variant: 'success' });
+      enqueueSnackbar('Ban Successful!', { variant: 'success' });
       fetchData();
     } catch (error) {
       setLoading(false);

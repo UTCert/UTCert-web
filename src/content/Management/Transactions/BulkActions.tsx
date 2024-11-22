@@ -483,7 +483,7 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
     // Qrcode
     const handleGenQrCertificateSelecteds = () => {
         let stakeId: string = GetCookie('stakeId')
-        setQrCode('https://utcert.vercel.app/?q=' + encryptVigenere(stakeId, 'KEYWORD'));
+        setQrCode('https://dev-utcert.texblabs.com/?q=' + encryptVigenere(stakeId, 'KEYWORD'));
         setOpenQr(true);
     }
     const handleCloseQr = () => {

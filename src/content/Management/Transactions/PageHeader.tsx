@@ -541,7 +541,7 @@ function DialogCrud({ open, onClose }) {
             {/* Table for Signers (if "Multiple Sign") */}
             {formData.signingType === 2 && (
               <Grid item xs={12}>
-                <Tooltip title="Add new signer" arrow>
+                <Tooltip title="Add new assigned Signer for this Certificate" arrow>
                   <Button
                     variant="contained"
                     onClick={addSignerAddress}
@@ -562,7 +562,7 @@ function DialogCrud({ open, onClose }) {
                 <Table sx={{ border: '1px solid #ddd', borderRadius: '4px' }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Signer Address</TableCell>
+                      <TableCell>Assigned signers' addresses</TableCell>
                       <TableCell align="center">Action</TableCell>
                     </TableRow>
                   </TableHead>
