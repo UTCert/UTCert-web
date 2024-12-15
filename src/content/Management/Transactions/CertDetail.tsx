@@ -19,14 +19,26 @@ function CertDetail(props: CertDetailProps) {
     {
       label: 'CERTIFICATE CODE:',
       value: selectedCertificate.code,
+      isShow: true,
       style: { borderBottom: '1px solid #000', paddingBottom: '5px' }
     },
     {
       label: 'RECEIVED IDENTITY:',
       value: selectedCertificate.receiverIdentityNumber,
+      isShow: true,
       style: { marginTop: '0px' }
     },
-    { label: 'RECEIVED NAME:', value: selectedCertificate.receiverName }
+    {
+      label: 'RECEIVED NAME:',
+      value: selectedCertificate.receiverName,
+      isShow: true
+    },
+    {
+      label: 'BANNED NOTE:',
+      value: selectedCertificate.note,
+      isShow: selectedCertificate.status == CertificateStatus.Banned && selectedCertificate.note,
+      style: { color: 'red' }
+    }
   ];
 
   return (
@@ -78,7 +90,7 @@ function CertDetail(props: CertDetailProps) {
               gap: '5px'
             }}
           >
-            {certificateDetails.map(({ label, value, style }) => (
+            {certificateDetails.filter(x => x.isShow).map(({ label, value, style }) => (
               <React.Fragment key={label}>
                 <p style={{ fontWeight: 'bold', ...style }}>{label}</p>
                 <p style={style}>{value}</p>

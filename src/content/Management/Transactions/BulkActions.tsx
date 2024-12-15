@@ -199,6 +199,7 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
     const [qrCode, setQrCode] = useState('');
     const [openConfirmDelete, setOpenConfirmDelete] = useState(false);
     const [openConfirmBan, setOpenConfirmBan] = useState<boolean>(false);
+    const [certNote, setCertNote] = useState<string>("");
     const [issuerAddress, setIssuerAddress] = useState<string>();
     const [isLoading, setLoading] = useState<boolean>(false);
 
@@ -287,7 +288,12 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
 
     const handleBanSelectedCertificates = async () => {
         try {
-            let inputs = selectedCertificates.filter(x => isEnableBan(x)).map(x => x.id);
+
+            let inputs = selectedCertificates.filter(x => isEnableBan(x)).map(x => ({
+              id: x.id, 
+              note: certNote
+            }));
+             
             if(inputs.length > 0) {
                 setLoading(true);
                 await axiosInstance.post('/Certificate/ban-multiple-certificates', inputs);
@@ -519,173 +525,208 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
         return <Loading />;
       }
     return (
-        <>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box display="flex" alignItems="center">
-                    <Typography variant="h5" color="text.secondary">
-                        Bulk actions:
-                    </Typography>
-                    <ButtonGen
-                        sx={{ ml: 1 }}
-                        startIcon={<QrCodeScannerIcon />}
-                        variant="contained"
-                        onClick={() => (handleGenQrCertificateSelecteds())}
-                    >
-                        Generate QR
-                    </ButtonGen>
-                    <ButtonView
-                        sx={{ ml: 1 }}
-                        startIcon={<VisibilityIcon />}
-                        variant="contained"
-                        onClick={() => (handleViewCerts())}
-                    >
-                        View
-                    </ButtonView>
-                    {selectedCertificates.filter(x => isEnableSign(x)).length > 0 &&
-                       <>
-                            <Tooltip
-                                title={`${selectedCertificates.filter(x => isEnableSign(x)).length} certificates signing`} 
-                                arrow
-                            >
-                                <ButtonView
-                                    sx={{ ml: 1 }}
-                                    startIcon={<EditTwoToneIcon />}
-                                    variant="contained"
-                                    onClick={() => (handleSignSelectedCertificates())}
-                                >
-                                    Sign
-                                </ButtonView>
-                            </Tooltip>
-                       </>
-                    }
-                    {selectedCertificates.filter(x => isEnableSent(x)).length > 0 &&
-                        <Tooltip 
-                            title={`${selectedCertificates.filter(x => x.status == CertificateStatus.Signed && isEnableSent(x)).length} certificates sending`} 
-                            arrow
-                        >
-                        <Button
-                            sx={{ ml: 1 }}
-                            startIcon={<SendIcon />}
-                            variant="contained"
-                            onClick={() => handleMultipleSendCerts()}
-                        >
-                            Send
-                        </Button>
-                    </Tooltip>}
-                    {selectedCertificates.filter(x => isEnableBan(x)).length > 0 &&
-                        <Tooltip 
-                            title={`${selectedCertificates.filter(x => isEnableBan(x)).length} certificates banning`} 
-                            arrow
-                        >
-                        <ButtonError
-                                sx={{ ml: 1 }}
-                                startIcon={<DeleteIcon />}
-                                variant="contained"
-                                onClick={() => handleOpenConfirmBan()}
-                            >
-                                Ban
-                            </ButtonError>
-                    </Tooltip>}
-                    {selectedCertificates.filter(x => x.status == CertificateStatus.Draft).length > 0 && 
-                        <Tooltip   
-                        title={`${selectedCertificates.filter(x => x.status == CertificateStatus.Draft).length} certificates deleting`} 
-                        arrow>
-                            <ButtonError
-                                sx={{ ml: 1 }}
-                                startIcon={<DeleteIcon />}
-                                variant="contained"
-                                onClick={() => handleOpenConfirmDelete()}
-                            >
-                                Delete
-                            </ButtonError>
-                        </Tooltip>
-                    }
-                </Box>
-            </Box>
+      <>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box display="flex" alignItems="center">
+            <Typography variant="h5" color="text.secondary">
+              Bulk actions:
+            </Typography>
+            <ButtonGen
+              sx={{ ml: 1 }}
+              startIcon={<QrCodeScannerIcon />}
+              variant="contained"
+              onClick={() => handleGenQrCertificateSelecteds()}
+            >
+              Generate QR
+            </ButtonGen>
+            <ButtonView
+              sx={{ ml: 1 }}
+              startIcon={<VisibilityIcon />}
+              variant="contained"
+              onClick={() => handleViewCerts()}
+            >
+              View
+            </ButtonView>
+            {selectedCertificates.filter((x) => isEnableSign(x)).length > 0 && (
+              <>
+                <Tooltip
+                  title={`${
+                    selectedCertificates.filter((x) => isEnableSign(x)).length
+                  } certificates signing`}
+                  arrow
+                >
+                  <ButtonView
+                    sx={{ ml: 1 }}
+                    startIcon={<EditTwoToneIcon />}
+                    variant="contained"
+                    onClick={() => handleSignSelectedCertificates()}
+                  >
+                    Sign
+                  </ButtonView>
+                </Tooltip>
+              </>
+            )}
+            {selectedCertificates.filter((x) => isEnableSent(x)).length > 0 && (
+              <Tooltip
+                title={`${
+                  selectedCertificates.filter(
+                    (x) =>
+                      x.status == CertificateStatus.Signed && isEnableSent(x)
+                  ).length
+                } certificates sending`}
+                arrow
+              >
+                <Button
+                  sx={{ ml: 1 }}
+                  startIcon={<SendIcon />}
+                  variant="contained"
+                  onClick={() => handleMultipleSendCerts()}
+                >
+                  Send
+                </Button>
+              </Tooltip>
+            )}
+            {selectedCertificates.filter((x) => isEnableBan(x)).length > 0 && (
+              <Tooltip
+                title={`${
+                  selectedCertificates.filter((x) => isEnableBan(x)).length
+                } certificates banning`}
+                arrow
+              >
+                <ButtonError
+                  sx={{ ml: 1 }}
+                  startIcon={<DeleteIcon />}
+                  variant="contained"
+                  onClick={() => handleOpenConfirmBan()}
+                >
+                  Ban
+                </ButtonError>
+              </Tooltip>
+            )}
+            {selectedCertificates.filter(
+              (x) => x.status == CertificateStatus.Draft
+            ).length > 0 && (
+              <Tooltip
+                title={`${
+                  selectedCertificates.filter(
+                    (x) => x.status == CertificateStatus.Draft
+                  ).length
+                } certificates deleting`}
+                arrow
+              >
+                <ButtonError
+                  sx={{ ml: 1 }}
+                  startIcon={<DeleteIcon />}
+                  variant="contained"
+                  onClick={() => handleOpenConfirmDelete()}
+                >
+                  Delete
+                </ButtonError>
+              </Tooltip>
+            )}
+          </Box>
+        </Box>
 
-            <DialogViewCerts
-                open={openCerts}
-                onClose={handleCloseCerts}
-                certificates={selectedCertificates}
+        <DialogViewCerts
+          open={openCerts}
+          onClose={handleCloseCerts}
+          certificates={selectedCertificates}
+        />
+
+        <Dialog
+          open={openQr}
+          onClose={handleCloseQr}
+          aria-labelledby="alert-dialog-title"
+          aria-describedby="alert-dialog-description"
+        >
+          <DialogTitle id="alert-dialog-title">
+            {'Your certifiates code here'}
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText
+              id="alert-dialog-description"
+              style={{ display: 'flex', flexDirection: 'column' }}
+            >
+              <div style={{ marginBottom: '10px' }}>
+                <QRCode
+                  size={300}
+                  bgColor="white"
+                  fgColor="black"
+                  value={qrCode}
+                />
+              </div>
+              <TextField
+                id="outlined-read-only-input"
+                label="QR Code"
+                defaultValue={qrCode}
+                InputProps={{
+                  readOnly: true
+                }}
+              />
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseQr}>Confirm</Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog
+          open={openConfirmDelete}
+          onClose={handleCloseConfirmDelete}
+          aria-labelledby="alert-dialog-title"
+          aria-describedby="alert-dialog-description"
+        >
+          <DialogTitle id="alert-dialog-title">
+            {'Are you sure to delete this certificates?'}
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText id="alert-dialog-description">
+              You can't undo this operation
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseConfirmDelete}>Disagree</Button>
+            <Button
+              onClick={() => handleDeleteSelectedCertificates()}
+              autoFocus
+            >
+              Agree
+            </Button>
+          </DialogActions>
+        </Dialog>
+        <Dialog
+          open={openConfirmBan}
+          onClose={handleCloseConfirmBan}
+          aria-labelledby="alert-dialog-title"
+          aria-describedby="alert-dialog-description"
+        >
+          <DialogTitle id="alert-dialog-title">
+            {'Are you sure to ban this certificates?'}
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText id="alert-dialog-description">
+              You can't undo this operation.
+            </DialogContentText>
+            <TextField
+              id="reason-input"
+              label="Note"
+              variant="outlined"
+              fullWidth
+              margin="normal"
+              onChange={(e) => setCertNote(e.target.value)} 
             />
-
-            <Dialog
-                open={openQr}
-                onClose={handleCloseQr}
-                aria-labelledby="alert-dialog-title"
-                aria-describedby="alert-dialog-description"
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseConfirmBan}>Disagree</Button>
+            <Button
+              onClick={() => handleBanSelectedCertificates()}
+              autoFocus
             >
-                <DialogTitle id="alert-dialog-title">
-                    {"Your certifiates code here"}
-                </DialogTitle>
-                <DialogContent>
-                    <DialogContentText id="alert-dialog-description" style={{ display: "flex", flexDirection: "column" }}>
-                        <div style={{ marginBottom: "10px" }}>
-                            <QRCode
-                                size={300}
-                                bgColor="white"
-                                fgColor="black"
-                                value={qrCode}
-                            />
-                        </div>
-                        <TextField
-                            id="outlined-read-only-input"
-                            label="QR Code"
-                            defaultValue={qrCode}
-                            InputProps={{
-                                readOnly: true,
-                            }}
-                        />
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseQr}>Confirm</Button>
-                </DialogActions>
-            </Dialog>
-
-            <Dialog
-                open={openConfirmDelete}
-                onClose={handleCloseConfirmDelete}
-                aria-labelledby="alert-dialog-title"
-                aria-describedby="alert-dialog-description"
-            >
-                <DialogTitle id="alert-dialog-title">
-                    {"Are you sure to delete this certificates?"}
-                </DialogTitle>
-                <DialogContent>
-                    <DialogContentText id="alert-dialog-description">
-                        You can't undo this operation
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseConfirmDelete}>Disagree</Button>
-                    <Button onClick={() => handleDeleteSelectedCertificates()} autoFocus>
-                        Agree
-                    </Button>
-                </DialogActions>
-            </Dialog>
-            <Dialog
-                open={openConfirmBan}
-                onClose={handleCloseConfirmBan}
-                aria-labelledby="alert-dialog-title"
-                aria-describedby="alert-dialog-description"
-            >
-                <DialogTitle id="alert-dialog-title">
-                    {"Are you sure to ban this certificates?"}
-                </DialogTitle>
-                <DialogContent>
-                    <DialogContentText id="alert-dialog-description">
-                        You can't undo this operation
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseConfirmBan}>Disagree</Button>
-                    <Button onClick={() => handleBanSelectedCertificates()} autoFocus>
-                        Agree
-                    </Button>
-                </DialogActions>
-            </Dialog>
-        </>
+              Agree
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </>
     );
 }
 
