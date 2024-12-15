@@ -92,7 +92,7 @@ function DialogImport(props: any) {
               enqueueSnackbar('File uploaded successfully!', {
                 variant: 'success'
               });
-              handleChangeData();
+              handleChangeData(true);
             }
             handleClose();
           } else {
@@ -355,7 +355,7 @@ function DialogCrud({ open, onClose }) {
           enqueueSnackbar('Create certificate successfully!', {
             variant: 'success'
           });
-          handleChangeData();
+          handleChangeData(true);
           handleReset();
           onClose();
         }

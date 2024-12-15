@@ -15,7 +15,7 @@ interface GlobalContextType {
   handleSetToken: (token: string) => void;
   handleGetUser: () => Promise<void>;
   handleClearSession: () => void;
-  handleChangeData: () => void; 
+  handleChangeData: (state?: boolean) => void; 
 }
 
 const GlobalContext = createContext<GlobalContextType>({} as GlobalContextType);
@@ -65,8 +65,8 @@ export const GlobalProvider = ({ children }) => {
     router.push('/'); 
   }
 
-  const handleChangeData = () => {
-    setChangeData(true); 
+  const handleChangeData = (state?: boolean) => {
+    setChangeData(state); 
   }
 
   useEffect(() => {

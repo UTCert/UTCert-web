@@ -28,7 +28,7 @@ import {
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import AttachFileIcon from '@mui/icons-material/AttachFile'; 
 import { ChangeEvent, useEffect, useState } from 'react';
-import { FaSpinner } from 'react-icons/fa';
+import { FaUndo } from 'react-icons/fa';
 import { MdArrowDownward, MdArrowUpward } from 'react-icons/md';
 import BulkActions from './BulkActions';
 import axiosInstance from '@/lib/axiosIntance';
@@ -268,7 +268,7 @@ function ReceivedCertsOrdersTable() {
               <div className={styles.box_container}>
                 <Tooltip title={'Reset'} arrow>
                   <Button onClick={resetData}>
-                    <FaSpinner
+                    <FaUndo
                       size={22}
                       style={{
                         cursor: isTableLoading ? 'not-allowed' : 'pointer'

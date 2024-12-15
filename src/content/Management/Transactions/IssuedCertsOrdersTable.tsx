@@ -19,8 +19,10 @@ import EditTwoToneIcon from '@mui/icons-material/EditTwoTone';
 import ListIcon from '@mui/icons-material/List';
 import SendIcon from '@mui/icons-material/Send';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import AttachFileIcon from '@mui/icons-material/AttachFile'; 
-import BlockIcon from '@mui/icons-material/Block'; 
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+import BlockIcon from '@mui/icons-material/Block';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import Loading from '@/components/Loading';
 import { useStore } from '@/contexts/GlobalContext';
@@ -35,9 +37,15 @@ import {
   CardHeader,
   Checkbox,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   Fade,
   FormControl,
+  Grid,
   IconButton,
   Input,
   InputLabel,
@@ -50,13 +58,14 @@ import {
   TableHead,
   TablePagination,
   TableRow,
+  TextField,
   Tooltip,
   Typography,
   useTheme
 } from '@mui/material';
 import { enqueueSnackbar } from 'notistack';
-import { ChangeEvent, useEffect, useState } from 'react';
-import { FaSpinner } from 'react-icons/fa';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { FaUndo } from 'react-icons/fa';
 import { MdArrowDownward, MdArrowUpward } from 'react-icons/md';
 import slugify from 'slugify';
 import styles from '../../../../styles/IssuedCerts.module.css';
@@ -100,11 +109,206 @@ const statusOptions = [
 
 const columns = [
   { key: 'code', name: 'Code', sort: '', align: 'center', isSort: true },
-  { key: 'name', name: 'Certificate Name', sort: '', align: 'left', isSort: true },
-  { key: 'receiverName', name: 'Received Name', sort: '', align: 'left', isSort: true },
+  {
+    key: 'name',
+    name: 'Certificate Name',
+    sort: '',
+    align: 'left',
+    isSort: true
+  },
+  {
+    key: 'receiverName',
+    name: 'Received Name',
+    sort: '',
+    align: 'left',
+    isSort: true
+  },
   { key: 'signedDate', name: 'Signed Date ', sort: '', align: 'center' },
   { key: 'signingType', name: 'Signing Type', align: 'center' }
 ];
+
+function UploadFileModal({ certificate, open, onClose }) {
+  const [input, setInput] = useState({
+    attachment: undefined,
+    attachmentName: ''
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const { handleChangeData } = useStore();
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+
+    if (file) {
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        const base64String = reader.result?.toString().split(',')[1];
+        setInput({
+          attachment: base64String,
+          attachmentName: file.name
+        });
+      };
+
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDrop = (e: any) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        setInput({
+          attachment: reader.result,
+          attachmentName: file.name
+        });
+      };
+
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDeleteFile = () => {
+    setInput({
+      attachment: null,
+      attachmentName: ''
+    });
+  };
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      let body = { ...input, id: certificate.id };
+      const result = await axiosInstance.post(
+        '/Certificate/upload-attachment',
+        body
+      );
+      setLoading(false);
+
+      if (result.status === HTTP_STATUS.OK) {
+        const { data } = result;
+        if (!data.success) {
+          enqueueSnackbar(data.message, {
+            variant: 'error'
+          });
+        } else {
+          enqueueSnackbar('Upload attachment successfully!', {
+            variant: 'success'
+          });
+          handleChangeData(true);
+          onClose();
+        }
+      }
+    } catch (error) {
+      setLoading(false);
+      enqueueSnackbar('Upload attachment error, try again!', {
+        variant: 'error'
+      });
+    }
+  };
+
+  return (
+    <>
+      {loading && <Loading />}
+      <Dialog open={open} onClose={onClose}>
+        <DialogTitle
+          sx={{
+            padding: '16px 24px',
+            fontWeight: 'bold',
+            fontSize: '1.25rem',
+            borderBottom: '1px solid #ddd'
+          }}
+        >
+          Upload attachment
+        </DialogTitle>
+        <Box
+          sx={{
+            padding: 2,
+            marginY: 2
+          }}
+        >
+          <Grid container spacing={2}></Grid>
+          <Grid item xs={12}>
+            {!input.attachment && (
+              <>
+                <Box
+                  sx={{
+                    border: '2px dashed grey',
+                    borderRadius: 2,
+                    padding: 2,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.2s',
+                    '&:hover': { borderColor: 'black' }
+                  }}
+                  onClick={() => fileInputRef.current.click()}
+                  onDrop={handleDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                >
+                  Drag & Drop or Click to Select Attachment
+                </Box>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  style={{ display: 'none' }}
+                  onChange={handleFileSelect}
+                  accept="*"
+                />
+              </>
+            )}
+
+            {input.attachmentName && (
+              <Box
+                sx={{
+                  mt: 2,
+                  p: 2,
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: 1
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <CheckCircleIcon
+                    sx={{ mr: 1, color: 'rgba(76, 175, 80, 0.7)' }}
+                  />
+                  {/* File selected icon */}
+                  <Typography
+                    variant="body1"
+                    sx={{ fontWeight: 'medium', color: 'primary.main' }}
+                  >
+                    Selected File: <strong>{input.attachmentName}</strong>
+                  </Typography>
+                </Box>
+
+                <Tooltip title="Remove file" arrow>
+                  <IconButton
+                    onClick={() => handleDeleteFile()}
+                    sx={{ color: 'rgba(255, 0, 0, 0.5)' }}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            )}
+          </Grid>
+        </Box>
+        <DialogActions>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit} variant="contained">
+            Submit
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
 
 function IssuedCertsOrdersTable() {
   const [isTableLoading, setTableLoading] = useState<boolean>(true);
@@ -130,7 +334,9 @@ function IssuedCertsOrdersTable() {
   const [openConfirmBan, setOpenConfirmBan] = useState<boolean>(false);
   const [issuerAddress, setIssuerAddress] = useState<string>();
   const [isResetFilter, setResetFilter] = useState<boolean>(false);
-  const { isChangeData, authToken } = useStore();
+  const [openUpdateFile, setOpenUpdateFile] = useState<boolean>(false);
+  const [certNote, setCertNote] = useState<string>();
+  const { isChangeData, authToken, handleChangeData } = useStore();
   const theme = useTheme();
 
   // Xử lý debounce trong useEffect
@@ -153,15 +359,15 @@ function IssuedCertsOrdersTable() {
 
   useEffect(() => {
     const getIssuerAddress = async () => {
-      let address = ""; 
+      let address = '';
       const wallet = await BrowserWallet.enable('eternl');
-      const lstUsedAddress= await wallet.getUsedAddresses();
-      if(lstUsedAddress?.length > 0) {
+      const lstUsedAddress = await wallet.getUsedAddresses();
+      if (lstUsedAddress?.length > 0) {
         address = lstUsedAddress[0];
       }
-      if(!address) {
-        const lstUnUsedAddress = await wallet.getUnusedAddresses(); 
-        if(lstUnUsedAddress?.length > 0) {
+      if (!address) {
+        const lstUnUsedAddress = await wallet.getUnusedAddresses();
+        if (lstUnUsedAddress?.length > 0) {
           address = lstUnUsedAddress[0];
         }
       }
@@ -177,8 +383,8 @@ function IssuedCertsOrdersTable() {
       1: { text: 'Draft', color: 'secondary' },
       2: { text: 'Signed', color: 'primary' },
       3: { text: 'Sent', color: 'success' },
-      4: { text: 'Banned', color: 'error' }, 
-      5: { text: 'Pending', color: 'info'}
+      4: { text: 'Banned', color: 'error' },
+      5: { text: 'Pending', color: 'info' }
     };
 
     const { text, color } = statusMap[status];
@@ -238,8 +444,8 @@ function IssuedCertsOrdersTable() {
       return false;
     }
 
-    if(certificate.contactStatus != ContactStatus.Accepted) {
-      return false; 
+    if (certificate.contactStatus != ContactStatus.Accepted) {
+      return false;
     }
 
     if (certificate.signingType === SigningType.SingleSigning) {
@@ -256,8 +462,11 @@ function IssuedCertsOrdersTable() {
   };
 
   const isEnableBan = (certificate: Certificate) => {
-    return certificate.status == CertificateStatus.Sent && certificate.issuer.receiveAddress == issuerAddress; 
-  }
+    return (
+      certificate.status == CertificateStatus.Sent &&
+      certificate.issuer.receiveAddress == issuerAddress
+    );
+  };
 
   const hasPendingSignatures = (certificate: Certificate) => {
     if (certificate.status < CertificateStatus.Signed) {
@@ -331,7 +540,7 @@ function IssuedCertsOrdersTable() {
     setSelectedCertificate(null);
   };
 
-  // open confirm ban 
+  // open confirm ban
   const handleOpenConfirmBan = (certificate: Certificate) => {
     setOpenConfirmBan(true);
     setSelectedCertificate(certificate);
@@ -341,9 +550,19 @@ function IssuedCertsOrdersTable() {
     setSelectedCertificate(null);
   };
 
+  // handle update attachmant
+  const handleShowUpdateFileModal = (certificate: Certificate) => {
+    setSelectedCertificate(certificate);
+    setOpenUpdateFile(true);
+  };
+  const handelCloseUpdateFIleModal = () => {
+    setOpenUpdateFile(false);
+  };
+
   // download attachment
   const handleDownloadFile = async (certificate: Certificate) => {
-    let gateway = PINATA_CLOUD_API ?? 'https://gold-fast-hamster-132.mypinata.cloud/ipfs/'; 
+    let gateway =
+      PINATA_CLOUD_API ?? 'https://gold-fast-hamster-132.mypinata.cloud/ipfs/';
     const ipfsGatewayUrl = gateway + certificate.attachmentIpfs;
 
     try {
@@ -383,7 +602,7 @@ function IssuedCertsOrdersTable() {
     if (!column.isSort) {
       return;
     }
-    
+
     if (!column.sort) {
       column.sort = 'asc';
     } else if (column.sort == 'desc') {
@@ -392,11 +611,11 @@ function IssuedCertsOrdersTable() {
       column.sort = 'desc';
     }
 
-    columns.forEach(x => {
+    columns.forEach((x) => {
       if (x.key !== column.key) {
-        x.sort = ''; 
+        x.sort = '';
       } else {
-        x.sort = column.sort; 
+        x.sort = column.sort;
       }
     });
 
@@ -434,9 +653,9 @@ function IssuedCertsOrdersTable() {
   // #region API
 
   const resetData = () => {
-    columns.forEach(column => {
-      column.sort = ''; 
-    })
+    columns.forEach((column) => {
+      column.sort = '';
+    });
     setResetFilter(true);
     setSelectedCertificates([]);
     setFilters({
@@ -463,16 +682,18 @@ function IssuedCertsOrdersTable() {
       if (response.status == HTTP_STATUS.OK) {
         const { data } = response.data;
 
-        const lstCert = (data.items as Certificate[])?.map(x => {
-          let attachment = x.attachmentJson ? JSON.parse(x.attachmentJson) : {}; 
+        const lstCert = (data.items as Certificate[])?.map((x) => {
+          let attachment = x.attachmentJson ? JSON.parse(x.attachmentJson) : {};
           return {
-          ...x,
-          attachmentIpfs: attachment.ipfsLink ?? "", 
-          attachmentName: attachment.ipfsName ?? ""
-        }});
+            ...x,
+            attachmentIpfs: attachment.ipfsLink ?? '',
+            attachmentName: attachment.ipfsName ?? ''
+          };
+        });
 
         setData(lstCert);
         setTotalCount(data.totalCount);
+        handleChangeData(false);
       } else {
         setData([]);
       }
@@ -688,7 +909,9 @@ function IssuedCertsOrdersTable() {
       setLoading(true);
       await axiosInstance.delete(`Certificate/${selectedCertifiate.id}`);
       setLoading(false);
-      setData((prevItems) => prevItems.filter(item => item.id !== selectedCertifiate.id));
+      setData((prevItems) =>
+        prevItems.filter((item) => item.id !== selectedCertifiate.id)
+      );
       enqueueSnackbar('Delete Successful!', { variant: 'success' });
     } catch (error) {
       setLoading(false);
@@ -701,7 +924,6 @@ function IssuedCertsOrdersTable() {
   async function handleBanCert() {
     setOpenConfirmBan(false);
     try {
-
       setLoading(true);
       const response = await fetch(API_URL + 'Certificate/ban-certificate', {
         method: 'POST',
@@ -710,7 +932,10 @@ function IssuedCertsOrdersTable() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`
         },
-        body: JSON.stringify(selectedCertifiate.id)
+        body: JSON.stringify({
+          id: selectedCertifiate.id,
+          note: certNote
+        })
       });
       if (!response.ok) {
         throw new Error('Failed to Ban certificate: ' + response.statusText);
@@ -721,7 +946,7 @@ function IssuedCertsOrdersTable() {
     } catch (error) {
       setLoading(false);
       console.error('Error:', error);
-      enqueueSnackbar('Send Error!', { variant: 'error' });
+      enqueueSnackbar('Ban Error!', { variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -747,7 +972,7 @@ function IssuedCertsOrdersTable() {
               <div className={styles.box_container}>
                 <Tooltip title={'Reset'} arrow>
                   <Button onClick={resetData}>
-                    <FaSpinner
+                    <FaUndo
                       size={22}
                       style={{
                         cursor: isTableLoading ? 'not-allowed' : 'pointer'
@@ -986,7 +1211,7 @@ function IssuedCertsOrdersTable() {
                                 description="Are you sure you want to delete this certificate? This action cannot be undone."
                                 onConfirm={handleDeleteCert}
                                 onCancel={handleCloseConfirmDelete}
-                              />                             
+                              />
                             </>
                           )}
                         </>
@@ -1054,6 +1279,25 @@ function IssuedCertsOrdersTable() {
                           </IconButton>
                         </Tooltip>
                       )}
+                      {!certificate.attachmentIpfs &&
+                        certificate.issuer.receiveAddress == issuerAddress && (
+                          <Tooltip title="Upload attachment" arrow>
+                            <IconButton
+                              sx={{
+                                '&:hover': {
+                                  background: theme.colors.warning.lighter
+                                },
+                                color: theme.palette.warning.main
+                              }}
+                              size="small"
+                              onClick={() =>
+                                handleShowUpdateFileModal(certificate)
+                              }
+                            >
+                              <UploadFileIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
 
                       {isEnableSigner(certificate) && (
                         <Tooltip title="Show Signer Table" arrow>
@@ -1088,15 +1332,38 @@ function IssuedCertsOrdersTable() {
                               <BlockIcon color="error" fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          <ConfirmDialog
-                                open={openConfirmBan}
-                                title="Confirm Deletion"
-                                description="Are you sure you want to ban this certificate? This action cannot be undone."
-                                onConfirm={handleBanCert}
-                                onCancel={handleCloseConfirmBan}
+                          <Dialog
+                            open={openConfirmBan}
+                            onClose={handleCloseConfirmBan}
+                            aria-labelledby="alert-dialog-title"
+                            aria-describedby="alert-dialog-description"
+                          >
+                            <DialogTitle id="alert-dialog-title">
+                              {'Are you sure to ban this certificate?'}
+                            </DialogTitle>
+                            <DialogContent>
+                              <DialogContentText id="alert-dialog-description">
+                                You can't undo this operation.
+                              </DialogContentText>
+                              <TextField
+                                id="reason-input"
+                                label="Note"
+                                variant="outlined"
+                                fullWidth
+                                margin="normal"
+                                onChange={(e) => setCertNote(e.target.value)}
                               />
+                            </DialogContent>
+                            <DialogActions>
+                              <Button onClick={() => handleCloseConfirmBan()}>
+                                Disagree
+                              </Button>
+                              <Button onClick={() => handleBanCert()} autoFocus>
+                                Agree
+                              </Button>
+                            </DialogActions>
+                          </Dialog>
                         </>
-                        
                       )}
                     </TableCell>
                   </TableRow>
@@ -1131,6 +1398,13 @@ function IssuedCertsOrdersTable() {
           open={isOpenSignerTable}
           onClose={handleCloseSignerTable}
           certificate={selectedCertifiate}
+        />
+      )}
+      {selectedCertifiate && openUpdateFile && (
+        <UploadFileModal
+          certificate={selectedCertifiate}
+          onClose={handelCloseUpdateFIleModal}
+          open={openUpdateFile}
         />
       )}
     </Card>

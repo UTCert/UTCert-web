@@ -37,6 +37,7 @@ export interface Certificate {
   issuer: User; 
   receiver: User;
 
+  note: string; 
 }
 
 export enum CertificateStatus {
