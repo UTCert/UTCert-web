@@ -22,7 +22,7 @@ function Overview() {
                 <Features />
                 <HowToUse />
                 <Cta />
-                <AboutUs />
+                {/* <AboutUs /> */}
                 <Footer />
             </div>
         </>
