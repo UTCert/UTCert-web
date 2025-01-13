@@ -718,11 +718,9 @@ function IssuedCertsOrdersTable() {
 
   async function handleSignCert(certificate: Certificate) {
     try {
-      console.log(' 🚀 1');
       const wallet = await BrowserWallet.enable('eternl');
       const forgingScript = ForgeScript.withOneSignature(issuerAddress);
       const tx = new Transaction({ initiator: wallet });
-      console.log(' 🚀 11');
 
       const assetMetadata: AssetMetadata = {
         certificateName: certificate.name,
@@ -740,7 +738,6 @@ function IssuedCertsOrdersTable() {
         assetMetadata['attachmentHash'] = attachment.hash;
       }
 
-      console.log(' 🚀 2');
       const asset: Mint = {
         assetName: `${slugify(certificate.receiver.name)}-${
           certificate.receiverIdentityNumber
@@ -751,12 +748,10 @@ function IssuedCertsOrdersTable() {
         recipient: issuerAddress
       };
 
-      console.log(' 🚀 3');
       tx.mintAsset(forgingScript, asset);
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       await wallet.submitTx(signedTx);
-      console.log(' 🚀 4');
 
       setLoading(true);
       await axiosInstance.post('/Certificate/sign-certificate', {
