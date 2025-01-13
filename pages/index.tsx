@@ -6,7 +6,6 @@ import Header from "@/containers/Header/header.component";
 import WhatUTCert from "@/containers/WhatUTCert/what_utcert.component";
 import styles from "../styles/Overview.module.css";
 import Features from "@/containers/Features/features.component";
-import AboutUs from "@/components/AboutUs";
 import HowToUse from "@/containers/HowToUse/how_to_use.component";
 
 function Overview() {
@@ -22,7 +21,7 @@ function Overview() {
                 <Features />
                 <HowToUse />
                 <Cta />
-                <AboutUs />
+                {/* <AboutUs /> */}
                 <Footer />
             </div>
         </>
