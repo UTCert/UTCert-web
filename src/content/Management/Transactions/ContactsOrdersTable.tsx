@@ -35,7 +35,6 @@ import { Contact, ContactStatus } from '@/models/contact';
 import DeleteTwoToneIcon from '@mui/icons-material/DeleteTwoTone';
 import HandshakeIcon from '@mui/icons-material/Handshake';
 import { enqueueSnackbar } from 'notistack';
-import { FaSpinner } from 'react-icons/fa';
 import { MdArrowDownward, MdArrowUpward } from 'react-icons/md';
 import styles from '../../../../styles/IssuedCerts.module.css';
 import axiosInstance from '@/lib/axiosIntance';
@@ -245,6 +244,7 @@ function ContactsOrdersTable() {
     try {
         setLoading(true); 
         const {data} = await axiosInstance.delete(`Contact/${contact.id}`)
+        setLoading(false); 
         if(data.success) {
             enqueueSnackbar('Delete contact successful!', { variant: 'success' });
         }

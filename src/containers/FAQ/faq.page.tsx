@@ -178,7 +178,7 @@ const FAQ = () => {
               <CaretRightOutlined rotate={isActive ? 90 : 0} style={caretStyle} />
             )}
             style={{ background: styles.utcert_faq_collapse_question }}
-            items={getItems(panelStyle)}
+            items={getItems(panelStyle as any)}
           />
         </div>
       </div>
