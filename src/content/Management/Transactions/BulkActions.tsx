@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import GetCookie from '@/hooks/getCookie';
 import axiosInstance from '@/lib/axiosIntance';
 import { Certificate, CertificateMulSign, CertificateStatus, SigningType } from '@/models/certificate';
-import { cloneDeep, textToHex } from '@/utils/helpers';
+import {textToHex } from '@/utils/helpers';
 import { Asset, AssetMetadata, BrowserWallet, ForgeScript, Mint, Transaction } from '@meshsdk/core';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditTwoToneIcon from '@mui/icons-material/EditTwoTone';
@@ -202,7 +202,7 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
     const [certNote, setCertNote] = useState<string>("");
     const [issuerAddress, setIssuerAddress] = useState<string>();
     const [isLoading, setLoading] = useState<boolean>(false);
-
+    
     useEffect(() => {
         setSelectedCertificates(certificates);
     }, [certificates]);
@@ -352,7 +352,7 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
 
     // check cert status
     const isEnableSign = (certificate: Certificate) => {
-      if (!issuerAddress) {
+      if (!issuerAddress || certificate.status == CertificateStatus.Signed) {
         return false;
       }
       if (certificate.status === CertificateStatus.Draft) {
@@ -393,6 +393,19 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
         return certificate.status == CertificateStatus.Sent && certificate.issuer.receiveAddress == issuerAddress; 
     }
 
+    const { certDraftCount, certEnableBanCount, certEnableSentCount, certEnableSignCount } = useMemo(() => {
+      return selectedCertificates?.reduce(
+        (acc, cert) => {
+          if (cert.status === CertificateStatus.Draft) acc.certDraftCount++;
+          if (isEnableBan(cert)) acc.certEnableBanCount++;
+          if (isEnableSent(cert)) acc.certEnableSentCount++;
+          if (isEnableSign(cert)) acc.certEnableSignCount++;
+          return acc;
+        },
+        { certDraftCount: 0, certEnableBanCount: 0, certEnableSentCount: 0, certEnableSignCount: 0 }
+      ) || { certDraftCount: 0, certEnableBanCount: 0, certEnableSentCount: 0, certEnableSignCount: 0 };
+    }, [selectedCertificates]);
+
     // delete certs
     const handleOpenConfirmDelete = () => {
         setOpenConfirmDelete(true);
@@ -410,16 +423,11 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
     const handleDeleteSelectedCertificates = async () => {
         setOpenConfirmDelete(false);
         try {
-            const certificatesId: string[] = [];
-            for (let index = 0; index < selectedCertificates.length; index++) {
-                certificatesId.push(certificates[index].id)
-            }
-
-            const res = await axiosInstance.post('/Certificate/delete-multiple-cert', {
-                data: { certificatesId }
-            });
+            let certificateIds = selectedCertificates.filter(x => x.status == CertificateStatus.Draft).map(x => x.id);
+            const res = await axiosInstance.post('/Certificate/delete-multiple-cert', certificateIds);
             if (res) {
                 enqueueSnackbar('Delete Successful!', { variant: 'success' });
+                loadData();
             } else {
                 enqueueSnackbar('Delete Error!', { variant: 'error' });
             }
@@ -547,12 +555,11 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
             >
               View
             </ButtonView>
-            {selectedCertificates.filter((x) => isEnableSign(x)).length > 0 && (
+            {certEnableSignCount > 0 && (
               <>
                 <Tooltip
-                  title={`${
-                    selectedCertificates.filter((x) => isEnableSign(x)).length
-                  } certificates signing`}
+                  title={`${certEnableSignCount
+                    } certificates signing`}
                   arrow
                 >
                   <ButtonView
@@ -561,19 +568,15 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
                     variant="contained"
                     onClick={() => handleSignSelectedCertificates()}
                   >
-                    Sign
+                    Sign ({certEnableSignCount})
                   </ButtonView>
                 </Tooltip>
               </>
             )}
-            {selectedCertificates.filter((x) => isEnableSent(x)).length > 0 && (
+            {certEnableSentCount > 0 && (
               <Tooltip
-                title={`${
-                  selectedCertificates.filter(
-                    (x) =>
-                      x.status == CertificateStatus.Signed && isEnableSent(x)
-                  ).length
-                } certificates sending`}
+                title={`${certEnableSentCount
+                  } certificates sending`}
                 arrow
               >
                 <Button
@@ -582,15 +585,14 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
                   variant="contained"
                   onClick={() => handleMultipleSendCerts()}
                 >
-                  Send
+                  Send ({certEnableSentCount})
                 </Button>
               </Tooltip>
             )}
-            {selectedCertificates.filter((x) => isEnableBan(x)).length > 0 && (
+            {certEnableBanCount > 0 && (
               <Tooltip
-                title={`${
-                  selectedCertificates.filter((x) => isEnableBan(x)).length
-                } certificates banning`}
+                title={`${certEnableBanCount
+                  } certificates banning`}
                 arrow
               >
                 <ButtonError
@@ -599,19 +601,14 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
                   variant="contained"
                   onClick={() => handleOpenConfirmBan()}
                 >
-                  Ban
+                  Ban ({certEnableBanCount})
                 </ButtonError>
               </Tooltip>
             )}
-            {selectedCertificates.filter(
-              (x) => x.status == CertificateStatus.Draft
-            ).length > 0 && (
+            {certDraftCount > 0 && (
               <Tooltip
-                title={`${
-                  selectedCertificates.filter(
-                    (x) => x.status == CertificateStatus.Draft
-                  ).length
-                } certificates deleting`}
+                title={`${certDraftCount
+                  } certificates deleting`}
                 arrow
               >
                 <ButtonError
@@ -620,7 +617,7 @@ function BulkActions({ certificates, loadData }: BulkActionProps) {
                   variant="contained"
                   onClick={() => handleOpenConfirmDelete()}
                 >
-                  Delete
+                  Delete ({certDraftCount})
                 </ButtonError>
               </Tooltip>
             )}

@@ -1,8 +1,7 @@
 import Navbar from "@/components/Navbar";
 import styles from "../styles/Overview.module.css";
-import FAQ from "@/containers/FAQ/faq.page";
 
-function FAQPage() {
+const FAQ = () => {
     return (
         <>
             <div className={styles.overview}>
@@ -15,4 +14,4 @@ function FAQPage() {
     );
 }
 
-export default FAQPage;
+export default FAQ;

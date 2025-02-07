@@ -7,6 +7,7 @@ import {
 import Link from 'src/components/Link';
 import Image from 'next/image';
 import logo from '@/public/logo.png'
+import { useRouter } from 'next/router';
 const LogoWrapper = styled(Link)(
   ({ theme }) => `
         color: ${theme.palette.text.primary};
@@ -35,6 +36,9 @@ const TooltipWrapper = styled(({ className, ...props }: TooltipProps) => (
 }));
 
 function Logo() {
+  const router = useRouter();
+  const currentRoute = router.pathname;
+  const isProtectedPage = currentRoute.startsWith("/dashboards") || currentRoute.startsWith("/management");
 
   return (
     <TooltipWrapper
@@ -42,7 +46,7 @@ function Logo() {
       arrow
       style={{width: logo.width/4}}
     >
-      <LogoWrapper href="/">
+      <LogoWrapper href={isProtectedPage ? '/dashboards/home' : '/'} >
           <Image
             src={logo.src}
             width={logo.width/4}

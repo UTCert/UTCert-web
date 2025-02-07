@@ -156,7 +156,7 @@ function DialogCrud({ open, onClose }) {
     identityNumber: '',
     certificateName: '',
     receiverName: '',
-    receiverDoB: dayjs(),
+    dateOfBirth: dayjs().toISOString(),
     graduationYear: '',
     classification: '',
     studyMode: 1,
@@ -173,7 +173,7 @@ function DialogCrud({ open, onClose }) {
     identityNumber: '',
     certificateName: '',
     receiverName: '',
-    receiverDoB: '',
+    dateOfBirth: '',
     graduationYear: '',
     classification: '',
     studyMode: '',
@@ -193,7 +193,7 @@ function DialogCrud({ open, onClose }) {
       identityNumber: '',
       certificateName: '',
       receiverName: '',
-      receiverDoB: dayjs(),
+      dateOfBirth: dayjs().toISOString(),
       graduationYear: '',
       classification: '',
       studyMode: 1,
@@ -217,7 +217,7 @@ function DialogCrud({ open, onClose }) {
   };
 
   const handleDateChange = (date: any) => {
-    setFormData({ ...formData, receiverDoB: date });
+    setFormData({ ...formData, dateOfBirth: date.toISOString() });
   };
 
   const addSignerAddress = () => {
@@ -514,7 +514,7 @@ function DialogCrud({ open, onClose }) {
               <FormControl fullWidth variant="outlined">
                 <DatePicker
                   label="Received Date of Birth"
-                  value={formData.receiverDoB}
+                  value={formData.dateOfBirth}
                   onChange={handleDateChange}
                   renderInput={(params) => <TextField {...params} />}
                 />
